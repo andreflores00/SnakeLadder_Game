@@ -21,39 +21,34 @@ public class Main extends Application { // [cite: 21]
 
     @Override
     public void start(Stage primaryStage) {
-        // Inicializa o jogador na casa 1
         jogador1 = new Jogador(Color.DODGERBLUE);
 
-        // Layout principal da aplicação
-        BorderPane root = new BorderPane();
+        BorderPane root = new BorderPane(); // [cite: 30]
 
         // --- TOPO: Menus ---
         MenuBar menuBar = new MenuBar();
         Menu menuFicheiro = new Menu("Ficheiro");
         menuFicheiro.getItems().addAll(new MenuItem("Novo Jogo"), new MenuItem("Carregar Tabuleiro"));
         menuBar.getMenus().add(menuFicheiro);
-        root.setTop(menuBar);
+        root.setTop(menuBar); // [cite: 31]
 
-        // --- CENTRO: Tabuleiro e Peças --- [cite: 32]
+        // --- CENTRO: Tabuleiro e Peças ---
         StackPane areaJogo = new StackPane();
 
-        Canvas canvas = new Canvas(600, 600);
+        Canvas canvas = new Canvas(600, 600); // [cite: 32]
         GraphicsContext gc = canvas.getGraphicsContext2D(); // [cite: 37]
         desenharTabuleiro(gc);
-        desenharObstaculosVisuais(gc); // Desenha as nossas cobras e escadas bonitas
+        desenharObstaculosVisuais(gc); // Desenha a cobra e a escada dinamicamente
 
-        Pane camadaPecas = new Pane(); // Painel transparente só para as peças (movimento suave)
+        Pane camadaPecas = new Pane();
         camadaPecas.setPrefSize(600, 600);
 
-        // Criar a peça gráfica (um círculo)
         pecaGrafica = new Circle(TAMANHO_CASA / 2.5, jogador1.getCor());
-
-        // Posição inicial (Casa 1)
         atualizarPosicaoGrafica(1);
         camadaPecas.getChildren().add(pecaGrafica);
 
         areaJogo.getChildren().addAll(canvas, camadaPecas);
-        root.setCenter(areaJogo);
+        root.setCenter(areaJogo); // [cite: 32]
 
         // --- LATERAL: Painel de controlo ---
         VBox painelLateral = new VBox(20);
@@ -71,24 +66,24 @@ public class Main extends Application { // [cite: 21]
         Label lblPosicao = new Label("Casa: 1");
         lblPosicao.setFont(Font.font("System", FontWeight.NORMAL, 16));
 
-        Button btnLancarDado = new Button("Lançar Dado");
+        Button btnLancarDado = new Button("Lançar Dado"); // [cite: 33]
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: #0d6efd; -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 5px; -fx-cursor: hand;");
 
-        // Ação do Botão (Lançar o dado) [cite: 15]
+        // Ação do Botão
         btnLancarDado.setOnAction(e -> {
-            int valorDado = (int) (Math.random() * 6) + 1; // Gera valor entre 1 e 6 [cite: 13]
+            int valorDado = (int) (Math.random() * 6) + 1; // [cite: 15]
             lblDado.setText("🎲 " + valorDado);
             jogador1.mover(valorDado); // [cite: 16]
         });
 
-        // O Listener (Padrão Observer): Ouve mudanças na posição e atualiza a interface gráfica [cite: 40, 41]
-        jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
+        // O Listener
+        jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> { // [cite: 40]
             lblPosicao.setText("Casa: " + newVal.intValue());
-            atualizarPosicaoGrafica(newVal.intValue());
+            atualizarPosicaoGrafica(newVal.intValue()); // [cite: 40]
         });
 
         painelLateral.getChildren().addAll(lblTitulo, lblDado, lblPosicao, btnLancarDado);
-        root.setRight(painelLateral);
+        root.setRight(painelLateral); // [cite: 33]
 
         // --- Configurar a Janela ---
         Scene scene = new Scene(root, 800, 650);
@@ -103,7 +98,6 @@ public class Main extends Application { // [cite: 21]
                 int x = coluna * TAMANHO_CASA;
                 int y = linha * TAMANHO_CASA;
 
-                // Cores alternadas do xadrez
                 if ((linha + coluna) % 2 == 0) {
                     gc.setFill(Color.web("#e9ecef"));
                 } else {
@@ -113,7 +107,6 @@ public class Main extends Application { // [cite: 21]
                 gc.setStroke(Color.web("#ced4da"));
                 gc.strokeRect(x, y, TAMANHO_CASA, TAMANHO_CASA);
 
-                // Escrever os números das casas na grelha
                 int numeroCasa = calcularNumeroCasa(linha, coluna);
                 gc.setFill(Color.web("#adb5bd"));
                 gc.setFont(Font.font("System", 10));
@@ -122,69 +115,9 @@ public class Main extends Application { // [cite: 21]
         }
     }
 
-    private void desenharObstaculosVisuais(GraphicsContext gc) {
-        // --- DESENHAR UMA ESCADA (Textura/Cor de Madeira) ---
-        gc.setStroke(Color.SADDLEBROWN);
-        gc.setLineWidth(4);
-
-        // As duas calhas laterais da escada
-        gc.strokeLine(260, 575, 380, 515);
-        gc.strokeLine(275, 585, 395, 525);
-
-        // Os degraus da escada
-        gc.setLineWidth(3);
-        gc.strokeLine(265, 565, 280, 575);
-        gc.strokeLine(295, 550, 310, 560);
-        gc.strokeLine(325, 535, 340, 545);
-        gc.strokeLine(355, 520, 370, 530);
-
-        // --- DESENHAR UMA COBRA (Corpo ondulado, cabeça e olhos) ---
-        gc.setStroke(Color.FORESTGREEN);
-        gc.setLineWidth(8); // Corpo gordinho para a cobra
-
-        // Curva de Bézier para criar o efeito ziguezague a rastejar
-        gc.beginPath();
-        gc.moveTo(390, 450); // Cauda (Perto da Casa 27)
-        gc.bezierCurveTo(340, 480, 440, 530, 390, 570); // Curvatura
-        gc.stroke();
-
-        // Desenhar a cabeça da cobra (Oval)
-        gc.setFill(Color.FORESTGREEN);
-        gc.fillOval(380, 560, 20, 20);
-
-        // Desenhar os olhos (Branco com pupila preta)
-        gc.setFill(Color.WHITE);
-        gc.fillOval(384, 566, 5, 5);
-        gc.fillOval(392, 566, 5, 5);
-        gc.setFill(Color.BLACK);
-        gc.fillOval(385, 567, 2, 2);
-        gc.fillOval(393, 567, 2, 2);
-
-        // Desenhar a língua bifurcada em vermelho
-        gc.setStroke(Color.RED);
-        gc.setLineWidth(2);
-        gc.strokeLine(390, 580, 390, 590); // Base da língua
-        gc.strokeLine(390, 590, 385, 595); // Ponta esquerda
-        gc.strokeLine(390, 590, 395, 595); // Ponta direita
-
-        // Repor a espessura da linha original
-        gc.setLineWidth(1);
-    }
-
-    // Lógica matemática para as casas ficarem em ziguezague
-    private int calcularNumeroCasa(int linha, int coluna) {
-        int linhaInvertida = 9 - linha;
-        if (linhaInvertida % 2 == 0) {
-            return (linhaInvertida * 10) + coluna + 1; // Esquerda para a direita
-        } else {
-            return (linhaInvertida * 10) + (9 - coluna) + 1; // Direita para a esquerda
-        }
-    }
-
-    // Calcula as coordenadas X e Y onde a peça deve ser desenhada
-    private void atualizarPosicaoGrafica(int numeroCasa) {
-        if (numeroCasa > 100) numeroCasa = 100; // O tabuleiro termina na casa 100 [cite: 7]
-
+    // NOVA FUNÇÃO: Ajuda-nos a encontrar as coordenadas X e Y de qualquer casa no ecrã
+    private double[] getCentroCasa(int numeroCasa) {
+        if (numeroCasa > 100) numeroCasa = 100;
         int zeroIndex = numeroCasa - 1;
         int linhaInvertida = zeroIndex / 10;
         int coluna = zeroIndex % 10;
@@ -195,12 +128,103 @@ public class Main extends Application { // [cite: 21]
 
         int linhaGrafica = 9 - linhaInvertida;
 
-        // Calcula o centro exato da casa
         double x = (coluna * TAMANHO_CASA) + (TAMANHO_CASA / 2.0);
         double y = (linhaGrafica * TAMANHO_CASA) + (TAMANHO_CASA / 2.0);
 
-        // Posiciona a peça no ecrã
-        pecaGrafica.setCenterX(x);
-        pecaGrafica.setCenterY(y);
+        return new double[]{x, y};
+    }
+
+    private void desenharObstaculosVisuais(GraphicsContext gc) {
+        // Gerar posições lógicas aleatórias e separadas para evitar sobreposição
+        // A escada fica mais nas casas baixas, a cobra nas casas altas
+        int escadaInicio = 5 + (int)(Math.random() * 15);
+        int escadaFim = escadaInicio + 30 + (int)(Math.random() * 40);
+
+        int cobraInicio = 60 + (int)(Math.random() * 30); // Cabeça da cobra
+        int cobraFim = cobraInicio - 30 - (int)(Math.random() * 20); // Cauda
+
+        // Obter as coordenadas reais no ecrã
+        double[] pEscadaInicio = getCentroCasa(escadaInicio);
+        double[] pEscadaFim = getCentroCasa(escadaFim);
+
+        double[] pCobraInicio = getCentroCasa(cobraInicio);
+        double[] pCobraFim = getCentroCasa(cobraFim);
+
+        // ==========================================
+        // DESENHAR A ESCADA DINÂMICA
+        // ==========================================
+        gc.setStroke(Color.SADDLEBROWN);
+        gc.setLineWidth(4);
+
+        // Matemática para afastar as duas calhas da escada
+        double anguloEscada = Math.atan2(pEscadaFim[1] - pEscadaInicio[1], pEscadaFim[0] - pEscadaInicio[0]);
+        double offsetX = Math.sin(anguloEscada) * 12;
+        double offsetY = -Math.cos(anguloEscada) * 12;
+
+        // Calhas laterais
+        gc.strokeLine(pEscadaInicio[0] + offsetX, pEscadaInicio[1] + offsetY, pEscadaFim[0] + offsetX, pEscadaFim[1] + offsetY);
+        gc.strokeLine(pEscadaInicio[0] - offsetX, pEscadaInicio[1] - offsetY, pEscadaFim[0] - offsetX, pEscadaFim[1] - offsetY);
+
+        // Degraus
+        gc.setLineWidth(3);
+        int numDegraus = 6;
+        for (int i = 1; i <= numDegraus; i++) {
+            double fracao = (double) i / (numDegraus + 1);
+            double posX = pEscadaInicio[0] + (pEscadaFim[0] - pEscadaInicio[0]) * fracao;
+            double posY = pEscadaInicio[1] + (pEscadaFim[1] - pEscadaInicio[1]) * fracao;
+            gc.strokeLine(posX + offsetX, posY + offsetY, posX - offsetX, posY - offsetY);
+        }
+
+        // ==========================================
+        // DESENHAR A COBRA DINÂMICA
+        // ==========================================
+        gc.setStroke(Color.FORESTGREEN);
+        gc.setLineWidth(8); // Corpo gordinho
+
+        double anguloCobra = Math.atan2(pCobraFim[1] - pCobraInicio[1], pCobraFim[0] - pCobraInicio[0]);
+        double dist = Math.hypot(pCobraFim[0] - pCobraInicio[0], pCobraFim[1] - pCobraInicio[1]);
+
+        // Pontos de controlo para fazer a cobra curvar e não ficar uma linha reta
+        double cp1X = pCobraInicio[0] + Math.cos(anguloCobra) * (dist * 0.3) + Math.sin(anguloCobra) * 40;
+        double cp1Y = pCobraInicio[1] + Math.sin(anguloCobra) * (dist * 0.3) - Math.cos(anguloCobra) * 40;
+
+        double cp2X = pCobraInicio[0] + Math.cos(anguloCobra) * (dist * 0.7) - Math.sin(anguloCobra) * 40;
+        double cp2Y = pCobraInicio[1] + Math.sin(anguloCobra) * (dist * 0.7) + Math.cos(anguloCobra) * 40;
+
+        // Desenhar o corpo ondulado
+        gc.beginPath();
+        gc.moveTo(pCobraInicio[0], pCobraInicio[1]);
+        gc.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, pCobraFim[0], pCobraFim[1]);
+        gc.stroke();
+
+        // Cabeça
+        gc.setFill(Color.FORESTGREEN);
+        gc.fillOval(pCobraInicio[0] - 10, pCobraInicio[1] - 10, 20, 20);
+
+        // Olhos
+        gc.setFill(Color.WHITE);
+        gc.fillOval(pCobraInicio[0] - 6, pCobraInicio[1] - 4, 5, 5);
+        gc.fillOval(pCobraInicio[0] + 2, pCobraInicio[1] - 4, 5, 5);
+        gc.setFill(Color.BLACK);
+        gc.fillOval(pCobraInicio[0] - 5, pCobraInicio[1] - 3, 2, 2);
+        gc.fillOval(pCobraInicio[0] + 3, pCobraInicio[1] - 3, 2, 2);
+
+        gc.setLineWidth(1); // Repor a linha
+    }
+
+    private int calcularNumeroCasa(int linha, int coluna) {
+        int linhaInvertida = 9 - linha;
+        if (linhaInvertida % 2 == 0) {
+            return (linhaInvertida * 10) + coluna + 1;
+        } else {
+            return (linhaInvertida * 10) + (9 - coluna) + 1;
+        }
+    }
+
+    private void atualizarPosicaoGrafica(int numeroCasa) {
+        // Agora usamos a nossa função auxiliar para não repetir código!
+        double[] pos = getCentroCasa(numeroCasa);
+        pecaGrafica.setCenterX(pos[0]);
+        pecaGrafica.setCenterY(pos[1]);
     }
 }
