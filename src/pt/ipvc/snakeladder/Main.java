@@ -13,37 +13,36 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
-public class Main extends Application {
+public class Main extends Application { // [cite: 21]
 
     private Jogador jogador1;
     private Circle pecaGrafica;
     private final int TAMANHO_CASA = 60;
 
-    public static void main(String[] args) {
-    }
-
     @Override
     public void start(Stage primaryStage) {
+        // Inicializa o jogador na casa 1
         jogador1 = new Jogador(Color.DODGERBLUE);
 
+        // Layout principal da aplicação
         BorderPane root = new BorderPane();
 
-        // --- TOPO ---
+        // --- TOPO: Menus ---
         MenuBar menuBar = new MenuBar();
         Menu menuFicheiro = new Menu("Ficheiro");
         menuFicheiro.getItems().addAll(new MenuItem("Novo Jogo"), new MenuItem("Carregar Tabuleiro"));
         menuBar.getMenus().add(menuFicheiro);
         root.setTop(menuBar);
 
-        // --- CENTRO (A grande melhoria com StackPane!) ---
+        // --- CENTRO: Tabuleiro e Peças --- [cite: 32]
         StackPane areaJogo = new StackPane();
 
         Canvas canvas = new Canvas(600, 600);
-        GraphicsContext gc = canvas.getGraphicsContext2D();
+        GraphicsContext gc = canvas.getGraphicsContext2D(); // [cite: 37]
         desenharTabuleiro(gc);
-        desenharObstaculosVisuais(gc);
+        desenharObstaculosVisuais(gc); // Desenha as nossas cobras e escadas bonitas
 
-        Pane camadaPecas = new Pane(); // Painel transparente só para as peças
+        Pane camadaPecas = new Pane(); // Painel transparente só para as peças (movimento suave)
         camadaPecas.setPrefSize(600, 600);
 
         // Criar a peça gráfica (um círculo)
@@ -56,7 +55,7 @@ public class Main extends Application {
         areaJogo.getChildren().addAll(canvas, camadaPecas);
         root.setCenter(areaJogo);
 
-        // --- LATERAL (Visual melhorado) ---
+        // --- LATERAL: Painel de controlo ---
         VBox painelLateral = new VBox(20);
         painelLateral.setStyle("-fx-padding: 30px; -fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 0 1px;");
         painelLateral.setAlignment(Pos.TOP_CENTER);
@@ -75,14 +74,14 @@ public class Main extends Application {
         Button btnLancarDado = new Button("Lançar Dado");
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: #0d6efd; -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 5px; -fx-cursor: hand;");
 
-        // Ação do Botão
+        // Ação do Botão (Lançar o dado) [cite: 15]
         btnLancarDado.setOnAction(e -> {
-            int valorDado = (int) (Math.random() * 6) + 1;
+            int valorDado = (int) (Math.random() * 6) + 1; // Gera valor entre 1 e 6 [cite: 13]
             lblDado.setText("🎲 " + valorDado);
-            jogador1.mover(valorDado);
+            jogador1.mover(valorDado); // [cite: 16]
         });
 
-        // O Listener (Padrão Observer) [cite: 41]
+        // O Listener (Padrão Observer): Ouve mudanças na posição e atualiza a interface gráfica [cite: 40, 41]
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             lblPosicao.setText("Casa: " + newVal.intValue());
             atualizarPosicaoGrafica(newVal.intValue());
@@ -91,9 +90,9 @@ public class Main extends Application {
         painelLateral.getChildren().addAll(lblTitulo, lblDado, lblPosicao, btnLancarDado);
         root.setRight(painelLateral);
 
-        // --- JANELA ---
+        // --- Configurar a Janela ---
         Scene scene = new Scene(root, 800, 650);
-        primaryStage.setTitle("Snake and Ladder");
+        primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
@@ -104,7 +103,7 @@ public class Main extends Application {
                 int x = coluna * TAMANHO_CASA;
                 int y = linha * TAMANHO_CASA;
 
-                // Cores alternadas mais suaves
+                // Cores alternadas do xadrez
                 if ((linha + coluna) % 2 == 0) {
                     gc.setFill(Color.web("#e9ecef"));
                 } else {
@@ -114,7 +113,7 @@ public class Main extends Application {
                 gc.setStroke(Color.web("#ced4da"));
                 gc.strokeRect(x, y, TAMANHO_CASA, TAMANHO_CASA);
 
-                // Bónus: Escrever os números das casas na grelha
+                // Escrever os números das casas na grelha
                 int numeroCasa = calcularNumeroCasa(linha, coluna);
                 gc.setFill(Color.web("#adb5bd"));
                 gc.setFont(Font.font("System", 10));
@@ -124,23 +123,55 @@ public class Main extends Application {
     }
 
     private void desenharObstaculosVisuais(GraphicsContext gc) {
-        // Desenhar uma Escada (ex: Casa 4 para 14)
-        gc.setStroke(Color.GREEN);
-        gc.setLineWidth(5);
-        // Coordenadas aproximadas (X, Y)
-        gc.strokeLine(270, 570, 390, 510);
-
-        // Desenhar uma Cobra (ex: Casa 17 para 7)
-        gc.setStroke(Color.RED);
+        // --- DESENHAR UMA ESCADA (Textura/Cor de Madeira) ---
+        gc.setStroke(Color.SADDLEBROWN);
         gc.setLineWidth(4);
-        // Coordenadas aproximadas
-        gc.strokeLine(390, 450, 390, 570);
 
-        // Repõe a linha normal para não estragar outros desenhos
+        // As duas calhas laterais da escada
+        gc.strokeLine(260, 575, 380, 515);
+        gc.strokeLine(275, 585, 395, 525);
+
+        // Os degraus da escada
+        gc.setLineWidth(3);
+        gc.strokeLine(265, 565, 280, 575);
+        gc.strokeLine(295, 550, 310, 560);
+        gc.strokeLine(325, 535, 340, 545);
+        gc.strokeLine(355, 520, 370, 530);
+
+        // --- DESENHAR UMA COBRA (Corpo ondulado, cabeça e olhos) ---
+        gc.setStroke(Color.FORESTGREEN);
+        gc.setLineWidth(8); // Corpo gordinho para a cobra
+
+        // Curva de Bézier para criar o efeito ziguezague a rastejar
+        gc.beginPath();
+        gc.moveTo(390, 450); // Cauda (Perto da Casa 27)
+        gc.bezierCurveTo(340, 480, 440, 530, 390, 570); // Curvatura
+        gc.stroke();
+
+        // Desenhar a cabeça da cobra (Oval)
+        gc.setFill(Color.FORESTGREEN);
+        gc.fillOval(380, 560, 20, 20);
+
+        // Desenhar os olhos (Branco com pupila preta)
+        gc.setFill(Color.WHITE);
+        gc.fillOval(384, 566, 5, 5);
+        gc.fillOval(392, 566, 5, 5);
+        gc.setFill(Color.BLACK);
+        gc.fillOval(385, 567, 2, 2);
+        gc.fillOval(393, 567, 2, 2);
+
+        // Desenhar a língua bifurcada em vermelho
+        gc.setStroke(Color.RED);
+        gc.setLineWidth(2);
+        gc.strokeLine(390, 580, 390, 590); // Base da língua
+        gc.strokeLine(390, 590, 385, 595); // Ponta esquerda
+        gc.strokeLine(390, 590, 395, 595); // Ponta direita
+
+        // Repor a espessura da linha original
         gc.setLineWidth(1);
     }
 
-    // Lógica para desenhar os números em ziguezague
+    // Lógica matemática para as casas ficarem em ziguezague
     private int calcularNumeroCasa(int linha, int coluna) {
         int linhaInvertida = 9 - linha;
         if (linhaInvertida % 2 == 0) {
@@ -150,25 +181,25 @@ public class Main extends Application {
         }
     }
 
-    // Calcula onde a peça deve estar no ecrã com base no número da casa
+    // Calcula as coordenadas X e Y onde a peça deve ser desenhada
     private void atualizarPosicaoGrafica(int numeroCasa) {
-        if (numeroCasa > 100) numeroCasa = 100; // Limite do tabuleiro
+        if (numeroCasa > 100) numeroCasa = 100; // O tabuleiro termina na casa 100 [cite: 7]
 
         int zeroIndex = numeroCasa - 1;
         int linhaInvertida = zeroIndex / 10;
         int coluna = zeroIndex % 10;
 
         if (linhaInvertida % 2 != 0) {
-            coluna = 9 - coluna; // Padrão ziguezague do Snake & Ladder
+            coluna = 9 - coluna;
         }
 
         int linhaGrafica = 9 - linhaInvertida;
 
-        // Calcula o centro da casa
+        // Calcula o centro exato da casa
         double x = (coluna * TAMANHO_CASA) + (TAMANHO_CASA / 2.0);
         double y = (linhaGrafica * TAMANHO_CASA) + (TAMANHO_CASA / 2.0);
 
-        // Move a peça para o centro
+        // Posiciona a peça no ecrã
         pecaGrafica.setCenterX(x);
         pecaGrafica.setCenterY(y);
     }
