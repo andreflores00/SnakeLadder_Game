@@ -41,6 +41,7 @@ public class Main extends Application {
         Canvas canvas = new Canvas(600, 600);
         GraphicsContext gc = canvas.getGraphicsContext2D();
         desenharTabuleiro(gc);
+        desenharObstaculosVisuais(gc);
 
         Pane camadaPecas = new Pane(); // Painel transparente só para as peças
         camadaPecas.setPrefSize(600, 600);
@@ -120,6 +121,23 @@ public class Main extends Application {
                 gc.fillText(String.valueOf(numeroCasa), x + 5, y + 15);
             }
         }
+    }
+
+    private void desenharObstaculosVisuais(GraphicsContext gc) {
+        // Desenhar uma Escada (ex: Casa 4 para 14)
+        gc.setStroke(Color.GREEN);
+        gc.setLineWidth(5);
+        // Coordenadas aproximadas (X, Y)
+        gc.strokeLine(270, 570, 390, 510);
+
+        // Desenhar uma Cobra (ex: Casa 17 para 7)
+        gc.setStroke(Color.RED);
+        gc.setLineWidth(4);
+        // Coordenadas aproximadas
+        gc.strokeLine(390, 450, 390, 570);
+
+        // Repõe a linha normal para não estragar outros desenhos
+        gc.setLineWidth(1);
     }
 
     // Lógica para desenhar os números em ziguezague
