@@ -1,8 +1,10 @@
 package pt.ipvc.snakeladder;
 
+import javafx.application.Application;
+
 public class Launcher {
     public static void main(String[] args) {
-        // Isto "engana" o Java para não verificar os módulos do JavaFX no arranque
-        Main.main(args);
+        // Dizemos explicitamente ao JavaFX para arrancar a classe Main
+        Application.launch(Main.class, args);
     }
 }
