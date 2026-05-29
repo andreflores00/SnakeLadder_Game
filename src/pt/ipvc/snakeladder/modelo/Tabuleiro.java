@@ -4,32 +4,39 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Tabuleiro {
-    private final int tamanho = 100;
-    private final List<Obstaculo> obstaculos;
+    // Array de 100 posições conforme o diagrama UML
+    private Quadricula[] casas;
+    private List<Obstaculo> obstaculos;
 
     public Tabuleiro() {
+        this.casas = new Quadricula[100];
         this.obstaculos = new ArrayList<>();
+        gerarQuadriculas();
+    }
+
+    private void gerarQuadriculas() {
+        for (int i = 0; i < 100; i++) {
+            int numero = i + 1;
+            // Para a lógica de consola/modelo, os valores X e Y podem ser 0 inicialmente
+            // A interface gráfica (Main) tratará das coordenadas reais depois
+            casas[i] = new Quadricula(numero, 0, 0);
+        }
     }
 
     public void adicionarObstaculo(Obstaculo obs) {
         obstaculos.add(obs);
     }
 
-    /**
-     * Verifica se a casa tem uma cobra ou escada.
-     * @param posicaoAtual a casa onde o jogador aterrou.
-     * @return a casa de destino (se houver obstáculo) ou a própria casa se estiver vazia.
-     */
-    public int verificarCasa(int posicaoAtual) {
+    // Método atualizado que devolve o obstáculo se ele existir na casa atual
+    public Obstaculo verificarObstaculo(int posicaoAtual) {
         for (Obstaculo obs : obstaculos) {
             if (obs.getInicio() == posicaoAtual) {
-                return obs.getFim(); // O jogador "viaja" pelo obstáculo
+                return obs; // Devolve a Cobra ou Escada encontrada
             }
         }
-        return posicaoAtual; // Fica no mesmo sítio
+        return null; // Não há obstáculo nesta casa
     }
 
-    public int getTamanho() {
-        return tamanho;
-    }
+    public Quadricula[] getCasas() { return casas; }
+    public List<Obstaculo> getObstaculos() { return obstaculos; }
 }
