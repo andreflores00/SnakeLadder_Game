@@ -12,6 +12,7 @@ import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import pt.ipvc.snakeladder.modelo.Jogador;
 
 public class Main extends Application { // [cite: 21]
 
