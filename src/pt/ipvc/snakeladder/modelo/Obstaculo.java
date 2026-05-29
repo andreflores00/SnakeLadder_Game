@@ -9,11 +9,9 @@ public abstract class Obstaculo {
         this.fim = fim;
     }
 
-    public int getInicio() {
-        return inicio;
-    }
+    public int getInicio() { return inicio; }
+    public int getFim() { return fim; }
 
-    public int getFim() {
-        return fim;
-    }
+    // O método exigido pelo Diagrama UML
+    public abstract void aplicar(Jogador j);
 }
