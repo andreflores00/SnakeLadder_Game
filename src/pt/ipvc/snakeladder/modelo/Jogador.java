@@ -1,4 +1,4 @@
-package pt.ipvc.snakeladder;
+package pt.ipvc.snakeladder.modelo;
 
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.scene.paint.Color;
