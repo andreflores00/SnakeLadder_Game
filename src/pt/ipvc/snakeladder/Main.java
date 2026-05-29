@@ -135,81 +135,77 @@ public class Main extends Application { // [cite: 21]
     }
 
     private void desenharObstaculosVisuais(GraphicsContext gc) {
-        // Gerar posições lógicas aleatórias e separadas para evitar sobreposição
-        // A escada fica mais nas casas baixas, a cobra nas casas altas
-        int escadaInicio = 5 + (int)(Math.random() * 15);
-        int escadaFim = escadaInicio + 30 + (int)(Math.random() * 40);
+        java.util.Random random = new java.util.Random();
+        // Conjunto para garantir que não usamos a mesma casa duas vezes
+        java.util.Set<Integer> casasOcupadas = new java.util.HashSet<>();
 
-        int cobraInicio = 60 + (int)(Math.random() * 30); // Cabeça da cobra
-        int cobraFim = cobraInicio - 30 - (int)(Math.random() * 20); // Cauda
+        // --- GERAR ESCADA ALEATÓRIA ---
+        int escadaInicio;
+        do {
+            escadaInicio = 5 + random.nextInt(15); // Casa entre 5 e 20
+        } while (casasOcupadas.contains(escadaInicio));
+        casasOcupadas.add(escadaInicio);
 
-        // Obter as coordenadas reais no ecrã
+        int escadaFim = escadaInicio + 30 + random.nextInt(40);
+
+        // --- GERAR COBRA ALEATÓRIA ---
+        int cobraInicio;
+        do {
+            cobraInicio = 60 + random.nextInt(30); // Casa entre 60 e 90
+        } while (casasOcupadas.contains(cobraInicio));
+        casasOcupadas.add(cobraInicio);
+
+        int cobraFim = cobraInicio - 30 - random.nextInt(20);
+
+        // --- DESENHO DA ESCADA ---
         double[] pEscadaInicio = getCentroCasa(escadaInicio);
         double[] pEscadaFim = getCentroCasa(escadaFim);
 
-        double[] pCobraInicio = getCentroCasa(cobraInicio);
-        double[] pCobraFim = getCentroCasa(cobraFim);
-
-        // ==========================================
-        // DESENHAR A ESCADA DINÂMICA
-        // ==========================================
         gc.setStroke(Color.SADDLEBROWN);
         gc.setLineWidth(4);
-
-        // Matemática para afastar as duas calhas da escada
         double anguloEscada = Math.atan2(pEscadaFim[1] - pEscadaInicio[1], pEscadaFim[0] - pEscadaInicio[0]);
         double offsetX = Math.sin(anguloEscada) * 12;
         double offsetY = -Math.cos(anguloEscada) * 12;
 
-        // Calhas laterais
         gc.strokeLine(pEscadaInicio[0] + offsetX, pEscadaInicio[1] + offsetY, pEscadaFim[0] + offsetX, pEscadaFim[1] + offsetY);
         gc.strokeLine(pEscadaInicio[0] - offsetX, pEscadaInicio[1] - offsetY, pEscadaFim[0] - offsetX, pEscadaFim[1] - offsetY);
 
-        // Degraus
+        // Desenhar degraus
         gc.setLineWidth(3);
-        int numDegraus = 6;
-        for (int i = 1; i <= numDegraus; i++) {
-            double fracao = (double) i / (numDegraus + 1);
+        for (int i = 1; i <= 6; i++) {
+            double fracao = (double) i / 7;
             double posX = pEscadaInicio[0] + (pEscadaFim[0] - pEscadaInicio[0]) * fracao;
             double posY = pEscadaInicio[1] + (pEscadaFim[1] - pEscadaInicio[1]) * fracao;
             gc.strokeLine(posX + offsetX, posY + offsetY, posX - offsetX, posY - offsetY);
         }
 
-        // ==========================================
-        // DESENHAR A COBRA DINÂMICA
-        // ==========================================
+        // --- DESENHO DA COBRA ---
+        double[] pCobraInicio = getCentroCasa(cobraInicio);
+        double[] pCobraFim = getCentroCasa(cobraFim);
+
         gc.setStroke(Color.FORESTGREEN);
-        gc.setLineWidth(8); // Corpo gordinho
-
-        double anguloCobra = Math.atan2(pCobraFim[1] - pCobraInicio[1], pCobraFim[0] - pCobraInicio[0]);
+        gc.setLineWidth(8);
         double dist = Math.hypot(pCobraFim[0] - pCobraInicio[0], pCobraFim[1] - pCobraInicio[1]);
+        double anguloCobra = Math.atan2(pCobraFim[1] - pCobraInicio[1], pCobraFim[0] - pCobraInicio[0]);
 
-        // Pontos de controlo para fazer a cobra curvar e não ficar uma linha reta
         double cp1X = pCobraInicio[0] + Math.cos(anguloCobra) * (dist * 0.3) + Math.sin(anguloCobra) * 40;
         double cp1Y = pCobraInicio[1] + Math.sin(anguloCobra) * (dist * 0.3) - Math.cos(anguloCobra) * 40;
-
         double cp2X = pCobraInicio[0] + Math.cos(anguloCobra) * (dist * 0.7) - Math.sin(anguloCobra) * 40;
         double cp2Y = pCobraInicio[1] + Math.sin(anguloCobra) * (dist * 0.7) + Math.cos(anguloCobra) * 40;
 
-        // Desenhar o corpo ondulado
         gc.beginPath();
         gc.moveTo(pCobraInicio[0], pCobraInicio[1]);
         gc.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, pCobraFim[0], pCobraFim[1]);
         gc.stroke();
 
-        // Cabeça
+        // Cabeça e Olhos
         gc.setFill(Color.FORESTGREEN);
         gc.fillOval(pCobraInicio[0] - 10, pCobraInicio[1] - 10, 20, 20);
-
-        // Olhos
         gc.setFill(Color.WHITE);
         gc.fillOval(pCobraInicio[0] - 6, pCobraInicio[1] - 4, 5, 5);
         gc.fillOval(pCobraInicio[0] + 2, pCobraInicio[1] - 4, 5, 5);
-        gc.setFill(Color.BLACK);
-        gc.fillOval(pCobraInicio[0] - 5, pCobraInicio[1] - 3, 2, 2);
-        gc.fillOval(pCobraInicio[0] + 3, pCobraInicio[1] - 3, 2, 2);
 
-        gc.setLineWidth(1); // Repor a linha
+        gc.setLineWidth(1); // Reset
     }
 
     private int calcularNumeroCasa(int linha, int coluna) {
