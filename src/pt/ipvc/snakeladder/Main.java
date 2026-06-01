@@ -237,9 +237,22 @@ public class Main extends Application {
     }
 
     private void desenharObstaculosVisuais(GraphicsContext gc) {
-        // Vetores FIXOS desenhados estrategicamente para nunca se cruzarem visualmente
-        int[][] escadasPos = { {3, 22}, {14, 35}, {31, 52}, {59, 80}, {73, 94} };
-        int[][] cobrasPos = { {29, 9}, {45, 16}, {67, 49}, {83, 62}, {98, 77} };
+        // Vetores FIXOS redesenhados para criar variedade visual (inclinações para a esquerda e direita)
+        int[][] escadasPos = {
+                {4, 25},   // Inclina para a direita
+                {15, 36},  // Inclina para a esquerda
+                {21, 42},  // Inclina para a direita (canto inferior esquerdo)
+                {55, 76},  // Inclina para a esquerda
+                {72, 91}   // Inclina para a direita (canto superior direito)
+        };
+
+        int[][] cobrasPos = {
+                {33, 18},  // Inclina para a esquerda
+                {48, 29},  // Inclina para a direita
+                {67, 51},  // Inclina para a direita
+                {82, 61},  // Inclina para a esquerda
+                {97, 78}   // Inclina para a esquerda (canto superior esquerdo)
+        };
 
         for (int[] pos : escadasPos) {
             desenharEscadaPremium(gc, pos[0], pos[1]);
@@ -256,7 +269,7 @@ public class Main extends Application {
         double[] pInicio = getCentroCasa(inicio);
         double[] pFim = getCentroCasa(fim);
 
-        DropShadow sombra = new DropShadow(6, 3, 3, Color.rgb(0, 0, 0, 0.4));
+        javafx.scene.effect.DropShadow sombra = new javafx.scene.effect.DropShadow(6, 3, 3, Color.rgb(0, 0, 0, 0.4));
         gc.setEffect(sombra);
 
         gc.setStroke(Color.web("#d35400")); // Madeira rica
@@ -287,7 +300,7 @@ public class Main extends Application {
         double[] pInicio = getCentroCasa(inicio);
         double[] pFim = getCentroCasa(fim);
 
-        DropShadow sombra = new DropShadow(8, 4, 4, Color.rgb(0, 0, 0, 0.35));
+        javafx.scene.effect.DropShadow sombra = new javafx.scene.effect.DropShadow(8, 4, 4, Color.rgb(0, 0, 0, 0.35));
         gc.setEffect(sombra);
 
         double angulo = Math.atan2(pFim[1] - pInicio[1], pFim[0] - pInicio[0]);
