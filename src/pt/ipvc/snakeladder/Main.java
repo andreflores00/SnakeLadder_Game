@@ -1,12 +1,14 @@
 package pt.ipvc.snakeladder;
 
 import javafx.application.Application;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
@@ -30,7 +32,6 @@ public class Main extends Application {
     private final int TAMANHO_CASA = 60;
 
     private Label lblTurnoStatus;
-    private Label lblCorStatus;
     private Label lblEstadoDetalhado;
     private Label lblDadoResultado;
 
@@ -42,19 +43,25 @@ public class Main extends Application {
         motorJogo.iniciar();
 
         BorderPane root = new BorderPane();
+        root.setStyle("-fx-background-color: #f1f5f9;");
 
-        // --- TOPO: Barra Superior de Ações ---
+        DropShadow sombraPaineis = new DropShadow(15, 0, 5, Color.color(0, 0, 0, 0.08));
+
+        // --- TOPO: Barra Superior ---
         HBox barraTopo = new HBox();
-        barraTopo.setStyle("-fx-background-color: #f8f9fa; -fx-padding: 10px 15px; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1px 0;");
+        barraTopo.setStyle("-fx-background-color: #ffffff; -fx-padding: 12px 25px;");
+        barraTopo.setEffect(new DropShadow(5, 0, 2, Color.color(0, 0, 0, 0.05)));
 
         Button btnNovoJogo = new Button("🔄 Novo Jogo");
-        btnNovoJogo.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #e9ecef; -fx-border-color: #ced4da; -fx-border-radius: 4px; -fx-background-radius: 4px;");
+        btnNovoJogo.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 8px 16px; -fx-text-fill: #334155;");
 
         barraTopo.getChildren().add(btnNovoJogo);
         root.setTop(barraTopo);
 
         // --- CENTRO: Tabuleiro ---
         StackPane areaJogo = new StackPane();
+        areaJogo.setEffect(sombraPaineis);
+        BorderPane.setMargin(areaJogo, new Insets(25, 10, 25, 25));
 
         Canvas canvas = new Canvas(600, 600);
         GraphicsContext gc = canvas.getGraphicsContext2D();
@@ -63,6 +70,7 @@ public class Main extends Application {
 
         Pane camadaPecas = new Pane();
         camadaPecas.setPrefSize(600, 600);
+        camadaPecas.setMaxSize(600, 600);
 
         pecaGrafica = new Circle(TAMANHO_CASA / 2.6);
         RadialGradient gradientePeca = new RadialGradient(
@@ -85,119 +93,135 @@ public class Main extends Application {
         areaJogo.getChildren().addAll(canvas, camadaPecas);
         root.setCenter(areaJogo);
 
-        // --- LATERAL: Painel ---
-        VBox painelLateral = new VBox(20);
-        painelLateral.setStyle("-fx-padding: 30px; -fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 0 1px;");
+        // --- LATERAL: Painel Flutuante ---
+        VBox painelLateral = new VBox(25);
+        painelLateral.setStyle("-fx-background-color: #ffffff; -fx-padding: 30px; -fx-background-radius: 12px;");
+        painelLateral.setEffect(sombraPaineis);
         painelLateral.setAlignment(Pos.TOP_CENTER);
-        painelLateral.setPrefWidth(200);
+        painelLateral.setPrefWidth(240);
+
+        BorderPane.setMargin(painelLateral, new Insets(25, 25, 25, 15));
 
         Label lblTitulo = new Label("JOGADOR 1");
-        lblTitulo.setFont(Font.font("System", FontWeight.BOLD, 18));
+        lblTitulo.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 22));
         lblTitulo.setTextFill(jogador1.getCor());
 
         Label lblDadoIcon = new Label("🎲");
-        lblDadoIcon.setFont(Font.font("System", 45));
+        lblDadoIcon.setFont(Font.font("System", 60));
 
         Button btnLancarDado = new Button("Lançar Dado");
-        btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: #0d6efd; -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 5px; -fx-cursor: hand;");
+        btnLancarDado.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 12px 24px; -fx-background-radius: 8px; -fx-cursor: hand;");
+        btnLancarDado.setEffect(new DropShadow(10, 0, 4, Color.color(0.23, 0.51, 0.96, 0.4)));
 
         painelLateral.getChildren().addAll(lblTitulo, lblDadoIcon, btnLancarDado);
         root.setRight(painelLateral);
 
-        // --- BOTTOM: Barra de Estado ---
-        GridPane barraInferior = new GridPane();
-        barraInferior.setStyle("-fx-background-color: #f1f3f5; -fx-padding: 15px; -fx-border-color: #ced4da; -fx-border-width: 1px 0 0 0;");
-        barraInferior.setHgap(40);
-        barraInferior.setVgap(5);
+        // --- BOTTOM: Novo Menu Premium Alinhado ---
+        HBox barraInferior = new HBox();
+        barraInferior.setStyle("-fx-background-color: #ffffff; -fx-padding: 20px 30px; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px; -fx-border-width: 1px;");
+        barraInferior.setEffect(sombraPaineis);
+        barraInferior.setAlignment(Pos.CENTER);
+
+        BorderPane.setMargin(barraInferior, new Insets(0, 25, 25, 25));
+
+        // Secção Esquerda (Estado do Turno)
+        VBox statusEsquerda = new VBox(5);
+        statusEsquerda.setAlignment(Pos.CENTER_LEFT);
 
         lblTurnoStatus = new Label("SEU TURNO");
-        lblTurnoStatus.setFont(Font.font("System", FontWeight.BOLD, 16));
-        lblTurnoStatus.setTextFill(Color.web("#212529"));
+        lblTurnoStatus.setFont(Font.font("System", FontWeight.BLACK, 16));
+        lblTurnoStatus.setTextFill(Color.web("#3b82f6")); // Azul destaque
 
-        lblCorStatus = new Label("A sua cor é Azul");
-        lblCorStatus.setFont(Font.font("System", FontWeight.NORMAL, 14));
-        lblCorStatus.setTextFill(Color.DODGERBLUE);
+        lblEstadoDetalhado = new Label("JOGADOR 1 (Azul) — Casa 1");
+        lblEstadoDetalhado.setFont(Font.font("System", FontWeight.NORMAL, 15));
+        lblEstadoDetalhado.setTextFill(Color.web("#475569"));
 
-        lblEstadoDetalhado = new Label("ESTADO DO JOGADOR:\nJOGADOR 1 (Azul): Casa 1");
-        lblEstadoDetalhado.setFont(Font.font("System", FontWeight.NORMAL, 13));
-        lblEstadoDetalhado.setTextFill(Color.web("#495057"));
+        statusEsquerda.getChildren().addAll(lblTurnoStatus, lblEstadoDetalhado);
 
-        Label lblUltimoLancamentoTitulo = new Label("ÚLTIMO LANÇAMENTO:");
-        lblUltimoLancamentoTitulo.setFont(Font.font("System", FontWeight.BOLD, 13));
+        // Espaçador para empurrar as coisas para os cantos
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        lblDadoResultado = new Label("[ Aguardando Lançamento... ]\n(Dado 1: — )");
-        lblDadoResultado.setFont(Font.font("System", FontWeight.NORMAL, 13));
-        lblDadoResultado.setTextFill(Color.web("#495057"));
+        // Secção Direita (Último Lançamento)
+        VBox statusDireita = new VBox(5);
+        statusDireita.setAlignment(Pos.CENTER_RIGHT);
 
-        barraInferior.add(lblTurnoStatus, 0, 0);
-        barraInferior.add(lblCorStatus, 0, 1);
-        barraInferior.add(lblEstadoDetalhado, 0, 2);
-        barraInferior.add(lblUltimoLancamentoTitulo, 1, 0);
-        barraInferior.add(lblDadoResultado, 1, 1, 1, 2);
+        Label lblUltimoLancamentoTitulo = new Label("ÚLTIMO LANÇAMENTO");
+        lblUltimoLancamentoTitulo.setFont(Font.font("System", FontWeight.BLACK, 13));
+        lblUltimoLancamentoTitulo.setTextFill(Color.web("#94a3b8"));
 
+        lblDadoResultado = new Label("[ Aguardando Lançamento... ]");
+        lblDadoResultado.setFont(Font.font("System", FontWeight.NORMAL, 15));
+        lblDadoResultado.setTextFill(Color.web("#475569"));
+
+        statusDireita.getChildren().addAll(lblUltimoLancamentoTitulo, lblDadoResultado);
+
+        barraInferior.getChildren().addAll(statusEsquerda, spacer, statusDireita);
         root.setBottom(barraInferior);
 
-        // --- AÇÃO: BOTÃO LANÇAR DADO ---
+        // --- AÇÕES DOS BOTÕES ---
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
                 motorJogo.jogarTurno();
-                int posAtual = jogador1.getPosicao();
-                lblDadoResultado.setText("[ Dado Lançado! ]\nPosição Atual: Casa " + posAtual);
+                lblDadoResultado.setText("Dado Lançado! (Na Casa " + jogador1.getPosicao() + ")");
             }
         });
 
-        // --- AÇÃO: BOTÃO NOVO JOGO COM AVISO ---
         btnNovoJogo.setOnAction(e -> {
-            // Criação da janela de aviso
             Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
             alerta.setTitle("Novo Jogo");
             alerta.setHeaderText("Começar um novo jogo?");
             alerta.setContentText("O teu progresso atual será perdido e o tabuleiro vai ser baralhado de novo. Queres continuar?");
 
-            // Alterar os botões do alerta para Português
             ButtonType btnSim = new ButtonType("Sim", ButtonBar.ButtonData.OK_DONE);
             ButtonType btnNao = new ButtonType("Não", ButtonBar.ButtonData.CANCEL_CLOSE);
             alerta.getButtonTypes().setAll(btnSim, btnNao);
 
-            // Aguarda a resposta do utilizador
             Optional<ButtonType> resultado = alerta.showAndWait();
 
-            // Se o utilizador clicou em "Sim"
             if (resultado.isPresent() && resultado.get() == btnSim) {
-                // 1. Novo motor (com novos obstáculos)
                 motorJogo = new Jogo();
-
-                // 2. Repõe o jogador (o Listener atualiza a peça graficamente de imediato)
                 jogador1.posicaoProperty().set(1);
                 motorJogo.adicionarJogador(jogador1);
                 motorJogo.iniciar();
 
-                // 3. Limpa a UI
                 lblTurnoStatus.setText("SEU TURNO");
-                lblTurnoStatus.setTextFill(Color.web("#212529"));
-                lblDadoResultado.setText("[ Jogo Reiniciado ]\n(Lança o dado para começar)");
-                btnLancarDado.setDisable(false); // Volta a ligar o botão do dado
+                lblTurnoStatus.setTextFill(Color.web("#3b82f6"));
+                lblDadoResultado.setText("[ Jogo Reiniciado ]");
+                btnLancarDado.setDisable(false);
 
-                // 4. Redesenha o tabuleiro e os obstáculos
                 desenharTabuleiro(gc);
                 desenharObstaculosVisuais(gc);
             }
         });
 
-        // --- LISTENER REATIVO ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int novaPosicao = newVal.intValue();
-            lblEstadoDetalhado.setText("ESTADO DO JOGADOR:\nJOGADOR 1 (Azul): Casa " + (novaPosicao > 100 ? 100 : novaPosicao));
+            lblEstadoDetalhado.setText("JOGADOR 1 (Azul) — Casa " + (novaPosicao > 100 ? 100 : novaPosicao));
             atualizarPosicaoGrafica(novaPosicao);
 
             if (motorJogo.isJogoTerminado() || novaPosicao >= 100) {
-                lblTurnoStatus.setText("★ VITÓRIA! ★");
-                lblTurnoStatus.setTextFill(Color.GREEN);
+                lblTurnoStatus.setText("🎉 VITÓRIA! 🎉");
+                lblTurnoStatus.setTextFill(Color.web("#10b981"));
                 btnLancarDado.setDisable(true);
             }
         });
 
-        Scene scene = new Scene(root, 820, 720);
+        // --- SCROLL PANE COM VELOCIDADE CORRIGIDA ---
+        ScrollPane scrollPane = new ScrollPane(root);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setStyle("-fx-background-color: #f1f5f9; -fx-background: #f1f5f9; -fx-border-color: transparent;");
+
+        // EVENT FILTER: Multiplica a velocidade de scroll da roda do rato
+        scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
+            double deltaY = event.getDeltaY();
+            // Ao dividir por um valor menor (250.0), o scroll fica muito mais rápido e fluído
+            scrollPane.setVvalue(scrollPane.getVvalue() - deltaY / 250.0);
+            event.consume(); // Impede o JavaFX de aplicar o scroll lento padrão por cima
+        });
+
+        Scene scene = new Scene(scrollPane, 920, 750);
         primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -209,15 +233,15 @@ public class Main extends Application {
                 int x = coluna * TAMANHO_CASA;
                 int y = linha * TAMANHO_CASA;
 
-                gc.setFill((linha + coluna) % 2 == 0 ? Color.web("#f8f9fa") : Color.WHITE);
+                gc.setFill((linha + coluna) % 2 == 0 ? Color.web("#f8fafc") : Color.WHITE);
                 gc.fillRect(x, y, TAMANHO_CASA, TAMANHO_CASA);
-                gc.setStroke(Color.web("#dee2e6"));
+                gc.setStroke(Color.web("#e2e8f0"));
                 gc.strokeRect(x, y, TAMANHO_CASA, TAMANHO_CASA);
 
                 int numeroCasa = calcularNumeroCasa(linha, coluna);
-                gc.setFill(Color.web("#adb5bd"));
-                gc.setFont(Font.font("System", FontWeight.BOLD, 11));
-                gc.fillText(String.valueOf(numeroCasa), x + 5, y + 15);
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("System", FontWeight.BOLD, 12));
+                gc.fillText(String.valueOf(numeroCasa), x + 6, y + 18);
             }
         }
     }
