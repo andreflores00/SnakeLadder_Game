@@ -208,48 +208,143 @@ public class Main extends Application {
         java.util.Random random = new java.util.Random();
         java.util.Set<Integer> casasOcupadas = new java.util.HashSet<>();
 
-        int escadaInicio;
-        do { escadaInicio = 5 + random.nextInt(15); } while (casasOcupadas.contains(escadaInicio));
-        casasOcupadas.add(escadaInicio);
-        int escadaFim = escadaInicio + 30 + random.nextInt(40);
+        // Bloquear a casa 1 e a 100 para não haver obstáculos na partida nem na chegada
+        casasOcupadas.add(1);
+        casasOcupadas.add(100);
 
-        int cobraInicio;
-        do { cobraInicio = 60 + random.nextInt(30); } while (casasOcupadas.contains(cobraInicio));
-        casasOcupadas.add(cobraInicio);
-        int cobraFim = cobraInicio - 30 - random.nextInt(20);
+        int numEscadas = 5; // Podes mudar a quantidade aqui!
+        int numCobras = 5;
 
-        double[] pEscadaInicio = getCentroCasa(escadaInicio);
-        double[] pEscadaFim = getCentroCasa(escadaFim);
-        double[] pCobraInicio = getCentroCasa(cobraInicio);
-        double[] pCobraFim = getCentroCasa(cobraFim);
+        // 1. Gerar Escadas
+        for (int i = 0; i < numEscadas; i++) {
+            int inicio, fim;
+            do {
+                inicio = 2 + random.nextInt(70); // Base da escada
+                fim = inicio + 10 + random.nextInt(20); // Topo da escada (garante que sobe)
+                if (fim > 99) fim = 99;
+            } while (casasOcupadas.contains(inicio) || casasOcupadas.contains(fim));
 
-        // Escada
-        gc.setStroke(Color.SADDLEBROWN); gc.setLineWidth(4);
-        double angEsc = Math.atan2(pEscadaFim[1] - pEscadaInicio[1], pEscadaFim[0] - pEscadaInicio[0]);
-        double oX = Math.sin(angEsc) * 12, oY = -Math.cos(angEsc) * 12;
-        gc.strokeLine(pEscadaInicio[0] + oX, pEscadaInicio[1] + oY, pEscadaFim[0] + oX, pEscadaFim[1] + oY);
-        gc.strokeLine(pEscadaInicio[0] - oX, pEscadaInicio[1] - oY, pEscadaFim[0] - oX, pEscadaFim[1] - oY);
-        gc.setLineWidth(3);
-        for (int i = 1; i <= 6; i++) {
-            double fr = (double) i / 7;
-            double pX = pEscadaInicio[0] + (pEscadaFim[0] - pEscadaInicio[0]) * fr;
-            double pY = pEscadaInicio[1] + (pEscadaFim[1] - pEscadaInicio[1]) * fr;
-            gc.strokeLine(pX + oX, pY + oY, pX - oX, pY - oY);
+            casasOcupadas.add(inicio);
+            casasOcupadas.add(fim);
+
+            desenharEscadaPremium(gc, inicio, fim);
+
+            // Sincronizar o visual com a lógica do jogo!
+            motorJogo.getTabuleiro().adicionarObstaculo(new pt.ipvc.snakeladder.modelo.Escada(inicio, fim));
         }
 
-        // Cobra
-        gc.setStroke(Color.FORESTGREEN); gc.setLineWidth(8);
-        double angCob = Math.atan2(pCobraFim[1] - pCobraInicio[1], pCobraFim[0] - pCobraInicio[0]);
-        double dist = Math.hypot(pCobraFim[0] - pCobraInicio[0], pCobraFim[1] - pCobraInicio[1]);
-        double c1X = pCobraInicio[0] + Math.cos(angCob) * (dist * 0.3) + Math.sin(angCob) * 40;
-        double c1Y = pCobraInicio[1] + Math.sin(angCob) * (dist * 0.3) - Math.cos(angCob) * 40;
-        double c2X = pCobraInicio[0] + Math.cos(angCob) * (dist * 0.7) - Math.sin(angCob) * 40;
-        double c2Y = pCobraInicio[1] + Math.sin(angCob) * (dist * 0.7) + Math.cos(angCob) * 40;
-        gc.beginPath(); gc.moveTo(pCobraInicio[0], pCobraInicio[1]);
-        gc.bezierCurveTo(c1X, c1Y, c2X, c2Y, pCobraFim[0], pCobraFim[1]); gc.stroke();
-        gc.setFill(Color.FORESTGREEN); gc.fillOval(pCobraInicio[0] - 10, pCobraInicio[1] - 10, 20, 20);
-        gc.setFill(Color.WHITE); gc.fillOval(pCobraInicio[0] - 6, pCobraInicio[1] - 4, 5, 5); gc.fillOval(pCobraInicio[0] + 2, pCobraInicio[1] - 4, 5, 5);
-        gc.setLineWidth(1);
+        // 2. Gerar Cobras
+        for (int i = 0; i < numCobras; i++) {
+            int inicio, fim;
+            do {
+                inicio = 30 + random.nextInt(69); // Cabeça da cobra
+                fim = inicio - 10 - random.nextInt(20); // Cauda da cobra (garante que desce)
+                if (fim < 2) fim = 2;
+            } while (casasOcupadas.contains(inicio) || casasOcupadas.contains(fim));
+
+            casasOcupadas.add(inicio);
+            casasOcupadas.add(fim);
+
+            desenharCobraPremium(gc, inicio, fim);
+
+            // Sincronizar o visual com a lógica do jogo!
+            motorJogo.getTabuleiro().adicionarObstaculo(new pt.ipvc.snakeladder.modelo.Cobra(inicio, fim));
+        }
+    }
+
+    private void desenharEscadaPremium(GraphicsContext gc, int inicio, int fim) {
+        double[] pInicio = getCentroCasa(inicio);
+        double[] pFim = getCentroCasa(fim);
+
+        // Sombras para efeito 3D
+        javafx.scene.effect.DropShadow sombra = new javafx.scene.effect.DropShadow();
+        sombra.setOffsetY(4.0);
+        sombra.setOffsetX(4.0);
+        sombra.setColor(Color.color(0, 0, 0, 0.4));
+        gc.setEffect(sombra);
+
+        gc.setStroke(Color.web("#8B4513")); // Cor de madeira escura
+        gc.setLineWidth(6);
+
+        double angulo = Math.atan2(pFim[1] - pInicio[1], pFim[0] - pInicio[0]);
+        double offsetX = Math.sin(angulo) * 14;
+        double offsetY = -Math.cos(angulo) * 14;
+
+        // Desenhar os dois ferros laterais da escada
+        gc.strokeLine(pInicio[0] + offsetX, pInicio[1] + offsetY, pFim[0] + offsetX, pFim[1] + offsetY);
+        gc.strokeLine(pInicio[0] - offsetX, pInicio[1] - offsetY, pFim[0] - offsetX, pFim[1] - offsetY);
+
+        // Desenhar os degraus dinamicamente conforme o tamanho da escada
+        gc.setLineWidth(4);
+        gc.setStroke(Color.web("#A0522D")); // Cor de madeira mais clara para contraste
+        int numDegraus = 5 + (int)(Math.hypot(pFim[0] - pInicio[0], pFim[1] - pInicio[1]) / 40);
+
+        for (int i = 1; i <= numDegraus; i++) {
+            double fracao = (double) i / (numDegraus + 1);
+            double pX = pInicio[0] + (pFim[0] - pInicio[0]) * fracao;
+            double pY = pInicio[1] + (pFim[1] - pInicio[1]) * fracao;
+            gc.strokeLine(pX + offsetX, pY + offsetY, pX - offsetX, pY - offsetY);
+        }
+        gc.setEffect(null); // Limpar o efeito para não afetar as próximas renderizações
+    }
+
+    private void desenharCobraPremium(GraphicsContext gc, int inicio, int fim) {
+        double[] pInicio = getCentroCasa(inicio); // Cabeça
+        double[] pFim = getCentroCasa(fim); // Cauda
+
+        // Sombras para efeito 3D
+        javafx.scene.effect.DropShadow sombra = new javafx.scene.effect.DropShadow();
+        sombra.setOffsetY(5.0);
+        sombra.setOffsetX(3.0);
+        sombra.setColor(Color.color(0, 0, 0, 0.5));
+        gc.setEffect(sombra);
+
+        double angulo = Math.atan2(pFim[1] - pInicio[1], pFim[0] - pInicio[0]);
+        double dist = Math.hypot(pFim[0] - pInicio[0], pFim[1] - pInicio[1]);
+
+        // Matemática para gerar um corpo orgânico em formato "S" (Curvas de Bézier)
+        double cp1X = pInicio[0] + Math.cos(angulo) * (dist * 0.3) + Math.sin(angulo) * 60;
+        double cp1Y = pInicio[1] + Math.sin(angulo) * (dist * 0.3) - Math.cos(angulo) * 60;
+
+        double cp2X = pInicio[0] + Math.cos(angulo) * (dist * 0.7) - Math.sin(angulo) * 60;
+        double cp2Y = pInicio[1] + Math.sin(angulo) * (dist * 0.7) + Math.cos(angulo) * 60;
+
+        // Corpo Principal
+        gc.setStroke(Color.web("#228B22")); // Verde floresta
+        gc.setLineWidth(14);
+        gc.setLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
+        gc.beginPath();
+        gc.moveTo(pInicio[0], pInicio[1]);
+        gc.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, pFim[0], pFim[1]);
+        gc.stroke();
+
+        // Detalhe: Padrão nas costas da cobra
+        gc.setStroke(Color.web("#32CD32")); // Verde lima
+        gc.setLineWidth(4);
+        gc.stroke();
+
+        gc.setEffect(null); // Limpar sombra para os detalhes da cara
+
+        // Cabeça
+        gc.setFill(Color.web("#006400")); // Verde escuro
+        gc.fillOval(pInicio[0] - 12, pInicio[1] - 12, 24, 24);
+
+        // Olhos (Brancos)
+        gc.setFill(Color.WHITE);
+        gc.fillOval(pInicio[0] - 9, pInicio[1] - 6, 7, 7);
+        gc.fillOval(pInicio[0] + 2, pInicio[1] - 6, 7, 7);
+
+        // Pupilas (Pretas)
+        gc.setFill(Color.BLACK);
+        gc.fillOval(pInicio[0] - 7, pInicio[1] - 4, 3, 3);
+        gc.fillOval(pInicio[0] + 4, pInicio[1] - 4, 3, 3);
+
+        // Língua Bifurcada
+        gc.setStroke(Color.CRIMSON);
+        gc.setLineWidth(2);
+        gc.strokeLine(pInicio[0], pInicio[1] - 12, pInicio[0], pInicio[1] - 20); // Base da língua
+        gc.strokeLine(pInicio[0], pInicio[1] - 20, pInicio[0] - 4, pInicio[1] - 25); // Garfo esquerdo
+        gc.strokeLine(pInicio[0], pInicio[1] - 20, pInicio[0] + 4, pInicio[1] - 25); // Garfo direito
     }
 
     private int calcularNumeroCasa(int linha, int coluna) {
