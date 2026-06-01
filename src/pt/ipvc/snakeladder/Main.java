@@ -20,6 +20,8 @@ import javafx.stage.Stage;
 import pt.ipvc.snakeladder.modelo.Jogo;
 import pt.ipvc.snakeladder.modelo.Jogador;
 
+import java.util.Optional;
+
 public class Main extends Application {
 
     private Jogo motorJogo;
@@ -41,12 +43,17 @@ public class Main extends Application {
 
         BorderPane root = new BorderPane();
 
-        MenuBar menuBar = new MenuBar();
-        Menu menuFicheiro = new Menu("Ficheiro");
-        menuFicheiro.getItems().addAll(new MenuItem("Novo Jogo"), new MenuItem("Carregar Tabuleiro"));
-        menuBar.getMenus().add(menuFicheiro);
-        root.setTop(menuBar);
+        // --- TOPO: Barra Superior de Ações ---
+        HBox barraTopo = new HBox();
+        barraTopo.setStyle("-fx-background-color: #f8f9fa; -fx-padding: 10px 15px; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1px 0;");
 
+        Button btnNovoJogo = new Button("🔄 Novo Jogo");
+        btnNovoJogo.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #e9ecef; -fx-border-color: #ced4da; -fx-border-radius: 4px; -fx-background-radius: 4px;");
+
+        barraTopo.getChildren().add(btnNovoJogo);
+        root.setTop(barraTopo);
+
+        // --- CENTRO: Tabuleiro ---
         StackPane areaJogo = new StackPane();
 
         Canvas canvas = new Canvas(600, 600);
@@ -78,6 +85,7 @@ public class Main extends Application {
         areaJogo.getChildren().addAll(canvas, camadaPecas);
         root.setCenter(areaJogo);
 
+        // --- LATERAL: Painel ---
         VBox painelLateral = new VBox(20);
         painelLateral.setStyle("-fx-padding: 30px; -fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 0 1px;");
         painelLateral.setAlignment(Pos.TOP_CENTER);
@@ -96,6 +104,7 @@ public class Main extends Application {
         painelLateral.getChildren().addAll(lblTitulo, lblDadoIcon, btnLancarDado);
         root.setRight(painelLateral);
 
+        // --- BOTTOM: Barra de Estado ---
         GridPane barraInferior = new GridPane();
         barraInferior.setStyle("-fx-background-color: #f1f3f5; -fx-padding: 15px; -fx-border-color: #ced4da; -fx-border-width: 1px 0 0 0;");
         barraInferior.setHgap(40);
@@ -128,6 +137,7 @@ public class Main extends Application {
 
         root.setBottom(barraInferior);
 
+        // --- AÇÃO: BOTÃO LANÇAR DADO ---
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
                 motorJogo.jogarTurno();
@@ -136,6 +146,45 @@ public class Main extends Application {
             }
         });
 
+        // --- AÇÃO: BOTÃO NOVO JOGO COM AVISO ---
+        btnNovoJogo.setOnAction(e -> {
+            // Criação da janela de aviso
+            Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
+            alerta.setTitle("Novo Jogo");
+            alerta.setHeaderText("Começar um novo jogo?");
+            alerta.setContentText("O teu progresso atual será perdido e o tabuleiro vai ser baralhado de novo. Queres continuar?");
+
+            // Alterar os botões do alerta para Português
+            ButtonType btnSim = new ButtonType("Sim", ButtonBar.ButtonData.OK_DONE);
+            ButtonType btnNao = new ButtonType("Não", ButtonBar.ButtonData.CANCEL_CLOSE);
+            alerta.getButtonTypes().setAll(btnSim, btnNao);
+
+            // Aguarda a resposta do utilizador
+            Optional<ButtonType> resultado = alerta.showAndWait();
+
+            // Se o utilizador clicou em "Sim"
+            if (resultado.isPresent() && resultado.get() == btnSim) {
+                // 1. Novo motor (com novos obstáculos)
+                motorJogo = new Jogo();
+
+                // 2. Repõe o jogador (o Listener atualiza a peça graficamente de imediato)
+                jogador1.posicaoProperty().set(1);
+                motorJogo.adicionarJogador(jogador1);
+                motorJogo.iniciar();
+
+                // 3. Limpa a UI
+                lblTurnoStatus.setText("SEU TURNO");
+                lblTurnoStatus.setTextFill(Color.web("#212529"));
+                lblDadoResultado.setText("[ Jogo Reiniciado ]\n(Lança o dado para começar)");
+                btnLancarDado.setDisable(false); // Volta a ligar o botão do dado
+
+                // 4. Redesenha o tabuleiro e os obstáculos
+                desenharTabuleiro(gc);
+                desenharObstaculosVisuais(gc);
+            }
+        });
+
+        // --- LISTENER REATIVO ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int novaPosicao = newVal.intValue();
             lblEstadoDetalhado.setText("ESTADO DO JOGADOR:\nJOGADOR 1 (Azul): Casa " + (novaPosicao > 100 ? 100 : novaPosicao));
@@ -192,15 +241,12 @@ public class Main extends Application {
             double[] pFim = getCentroCasa(obs.getFim());
 
             if (obs instanceof pt.ipvc.snakeladder.modelo.Escada) {
-                // --- DESIGN DAS ESCADAS ---
                 gc.setEffect(sombraObstaculo);
                 gc.setLineCap(StrokeLineCap.ROUND);
 
                 double angEsc = Math.atan2(pFim[1] - pInicio[1], pFim[0] - pInicio[0]);
-                // Reduzido de 16 para 12 para tornar a escada mais compacta e limpa
                 double oX = Math.sin(angEsc) * 12, oY = -Math.cos(angEsc) * 12;
 
-                // 1. Postes Laterais Escuros (Sombra base)
                 gc.setStroke(Color.web("#3b200e"));
                 gc.setLineWidth(8);
                 gc.strokeLine(pInicio[0] + oX, pInicio[1] + oY, pFim[0] + oX, pFim[1] + oY);
@@ -208,13 +254,11 @@ public class Main extends Application {
 
                 gc.setEffect(null);
 
-                // 2. Postes Laterais Claros (Efeito 3D da madeira)
                 gc.setStroke(Color.web("#7a4520"));
                 gc.setLineWidth(4);
                 gc.strokeLine(pInicio[0] + oX, pInicio[1] + oY, pFim[0] + oX, pFim[1] + oY);
                 gc.strokeLine(pInicio[0] - oX, pInicio[1] - oY, pFim[0] - oX, pFim[1] - oY);
 
-                // Degraus
                 for (int i = 1; i <= 7; i++) {
                     double fr = (double) i / 8;
                     double pX = pInicio[0] + (pFim[0] - pInicio[0]) * fr;
@@ -228,18 +272,15 @@ public class Main extends Application {
                     gc.setLineWidth(3);
                     gc.strokeLine(pX + oX, pY + oY, pX - oX, pY - oY);
                 }
-
                 gc.setLineCap(StrokeLineCap.SQUARE);
 
             } else if (obs instanceof pt.ipvc.snakeladder.modelo.Cobra) {
-                // --- DESIGN DA COBRA ---
                 gc.setEffect(sombraObstaculo);
                 gc.setLineCap(StrokeLineCap.ROUND);
 
                 double dist = Math.hypot(pFim[0] - pInicio[0], pFim[1] - pInicio[1]);
                 double angCob = Math.atan2(pFim[1] - pInicio[1], pFim[0] - pInicio[0]);
 
-                // Reduzido para evitar que a barriga da cobra se espalhe muito
                 double amp = Math.min(dist * 0.15, 30);
                 double c1X = pInicio[0] + Math.cos(angCob) * (dist * 0.3) + Math.sin(angCob) * amp;
                 double c1Y = pInicio[1] + Math.sin(angCob) * (dist * 0.3) - Math.cos(angCob) * amp;
