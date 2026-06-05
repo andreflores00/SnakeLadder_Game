@@ -40,6 +40,9 @@ public class Main extends Application {
         motorJogo = new Jogo();
         jogador1 = new Jogador(Color.DODGERBLUE);
         motorJogo.adicionarJogador(jogador1);
+
+        configurarObstaculosFixos();
+
         motorJogo.iniciar();
 
         BorderPane root = new BorderPane();
@@ -116,7 +119,7 @@ public class Main extends Application {
         painelLateral.getChildren().addAll(lblTitulo, lblDadoIcon, btnLancarDado);
         root.setRight(painelLateral);
 
-        // --- BOTTOM: Novo Menu Premium Alinhado ---
+        // --- BOTTOM: Menu Premium ---
         HBox barraInferior = new HBox();
         barraInferior.setStyle("-fx-background-color: #ffffff; -fx-padding: 20px 30px; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px; -fx-border-width: 1px;");
         barraInferior.setEffect(sombraPaineis);
@@ -124,13 +127,12 @@ public class Main extends Application {
 
         BorderPane.setMargin(barraInferior, new Insets(0, 25, 25, 25));
 
-        // Secção Esquerda (Estado do Turno)
         VBox statusEsquerda = new VBox(5);
         statusEsquerda.setAlignment(Pos.CENTER_LEFT);
 
         lblTurnoStatus = new Label("SEU TURNO");
         lblTurnoStatus.setFont(Font.font("System", FontWeight.BLACK, 16));
-        lblTurnoStatus.setTextFill(Color.web("#3b82f6")); // Azul destaque
+        lblTurnoStatus.setTextFill(Color.web("#3b82f6"));
 
         lblEstadoDetalhado = new Label("JOGADOR 1 (Azul) — Casa 1");
         lblEstadoDetalhado.setFont(Font.font("System", FontWeight.NORMAL, 15));
@@ -138,11 +140,9 @@ public class Main extends Application {
 
         statusEsquerda.getChildren().addAll(lblTurnoStatus, lblEstadoDetalhado);
 
-        // Espaçador para empurrar as coisas para os cantos
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Secção Direita (Último Lançamento)
         VBox statusDireita = new VBox(5);
         statusDireita.setAlignment(Pos.CENTER_RIGHT);
 
@@ -163,7 +163,7 @@ public class Main extends Application {
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
                 motorJogo.jogarTurno();
-                lblDadoResultado.setText("Dado Lançado! (Na Casa " + jogador1.getPosicao() + ")");
+                lblDadoResultado.setText("Dado Lançado! (Na Casa " + motorJogo.getDado().getValor() + ")");
             }
         });
 
@@ -183,6 +183,8 @@ public class Main extends Application {
                 motorJogo = new Jogo();
                 jogador1.posicaoProperty().set(1);
                 motorJogo.adicionarJogador(jogador1);
+
+                configurarObstaculosFixos();
                 motorJogo.iniciar();
 
                 lblTurnoStatus.setText("SEU TURNO");
@@ -190,6 +192,7 @@ public class Main extends Application {
                 lblDadoResultado.setText("[ Jogo Reiniciado ]");
                 btnLancarDado.setDisable(false);
 
+                gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
                 desenharTabuleiro(gc);
                 desenharObstaculosVisuais(gc);
             }
@@ -207,24 +210,30 @@ public class Main extends Application {
             }
         });
 
-        // --- SCROLL PANE COM VELOCIDADE CORRIGIDA ---
         ScrollPane scrollPane = new ScrollPane(root);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(true);
         scrollPane.setStyle("-fx-background-color: #f1f5f9; -fx-background: #f1f5f9; -fx-border-color: transparent;");
 
-        // EVENT FILTER: Multiplica a velocidade de scroll da roda do rato
         scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
             double deltaY = event.getDeltaY();
-            // Ao dividir por um valor menor (250.0), o scroll fica muito mais rápido e fluído
             scrollPane.setVvalue(scrollPane.getVvalue() - deltaY / 250.0);
-            event.consume(); // Impede o JavaFX de aplicar o scroll lento padrão por cima
+            event.consume();
         });
 
         Scene scene = new Scene(scrollPane, 920, 750);
         primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
         primaryStage.setScene(scene);
         primaryStage.show();
+    }
+
+    private void configurarObstaculosFixos() {
+        // Reduzido para 3 Escadas e 3 Cobras para um visual mais limpo
+        int[][] escadasPos = {{14, 48}, {52, 72}, {76, 95}};
+        int[][] cobrasPos = {{32, 12}, {56, 26}, {93, 68}};
+
+        for (int[] pos : escadasPos) motorJogo.getTabuleiro().adicionarObstaculo(new pt.ipvc.snakeladder.modelo.Escada(pos[0], pos[1]));
+        for (int[] pos : cobrasPos) motorJogo.getTabuleiro().adicionarObstaculo(new pt.ipvc.snakeladder.modelo.Cobra(pos[0], pos[1]));
     }
 
     private void desenharTabuleiro(GraphicsContext gc) {
@@ -336,7 +345,7 @@ public class Main extends Application {
                 gc.stroke();
                 gc.setLineDashes(0);
 
-                double angHead = Math.atan2(c1Y - pInicio[1], c1X - pInicio[0]);
+                double angHead = Math.atan2(pInicio[1] - c1Y, pInicio[0] - c1X);
 
                 gc.save();
                 gc.translate(pInicio[0], pInicio[1]);
