@@ -1,5 +1,10 @@
 package pt.ipvc.snakeladder;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.RotateTransition;
+import javafx.animation.ScaleTransition;
+import javafx.animation.Timeline;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -27,6 +32,7 @@ import pt.ipvc.snakeladder.modelo.Jogador;
 import pt.ipvc.snakeladder.rede.ClienteJogo;
 import pt.ipvc.snakeladder.rede.ServidorJogo;
 
+
 import java.util.Optional;
 
 public class Main extends Application {
@@ -37,7 +43,7 @@ public class Main extends Application {
     private Circle pecaJogador1;
     private Circle pecaJogador2;
     private final int TAMANHO_CASA = 50;
-
+    private StackPane areaJogo;
     private Label lblTurnoStatus;
     private Label lblEstadoDetalhado;
     private Label lblDadoResultado;
@@ -90,7 +96,7 @@ public class Main extends Application {
         root.setTop(barraTopo);
 
         // --- CENTRO: Tabuleiro ---
-        StackPane areaJogo = new StackPane();
+        areaJogo = new StackPane();
         areaJogo.setEffect(sombraPaineis);
         BorderPane.setMargin(areaJogo, new Insets(15, 10, 15, 20));
 
@@ -185,15 +191,29 @@ public class Main extends Application {
         // --- ACÇÕES DOS BOTÕES E REDE ---
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
-                int valorSorteado = motorJogo.getDado().rolar();
+                // 1. Desativa o botão temporariamente para ninguém clicar duas vezes seguidas
+                btnLancarDado.setDisable(true);
 
-                // Transmissão por Rede
-                if (modoRede) {
-                    if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
-                    else if (!souHost && cliente != null) cliente.enviarJogada(valorSorteado);
-                }
+                // 2. Animação de rotação do Dado
+                RotateTransition rt = new RotateTransition(Duration.millis(400), lblDadoIcon);
+                rt.setByAngle(360); // Dá uma volta completa
+                rt.setCycleCount(1);
 
-                processarJogadaSincronizada(valorSorteado);
+                // 3. Só executa a jogada DEPOIS da animação do dado terminar
+                rt.setOnFinished(anim -> {
+                    int valorSorteado = motorJogo.getDado().rolar();
+
+                    // Transmissão por Rede
+                    if (modoRede) {
+                        if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
+                        else if (!souHost && cliente != null) cliente.enviarJogada(valorSorteado);
+                    }
+
+                    processarJogadaSincronizada(valorSorteado);
+                });
+
+                // Inicia a animação
+                rt.play();
             }
         });
 
@@ -358,22 +378,62 @@ public class Main extends Application {
     private void verificarCondicaoVitoria(int idJogador, int localizacao) {
         if (motorJogo.isJogoTerminado() || localizacao >= 100) {
             String mensagemFinal;
+            Color corVitoria;
+
             if (idJogador == 1) {
-                mensagemFinal = "🎉 PARABÉNS, GANHASTE A PARTIDA! 🎉";
-                lblTurnoStatus.setTextFill(Color.web("#10b981"));
+                mensagemFinal = "GANHASTE!";
+                corVitoria = Color.web("#10b981");
             } else if (idJogador == 99) {
-                mensagemFinal = "🤖 O BOT VENCEU O JOGO! 🤖";
-                lblTurnoStatus.setTextFill(Color.CRIMSON);
+                mensagemFinal = "BOT VENCEU!";
+                corVitoria = Color.CRIMSON;
             } else {
-                mensagemFinal = "💀 O ADVERSÁRIO GANHOU! 💀";
-                lblTurnoStatus.setTextFill(Color.CRIMSON);
+                mensagemFinal = "ADVERSÁRIO GANHOU!";
+                corVitoria = Color.CRIMSON;
             }
+
+            // Atualiza os textos normais do painel lateral
+            lblTurnoStatus.setTextFill(corVitoria);
             lblTurnoStatus.setText(mensagemFinal);
             lblTituloPainel.setText("FIM DE JOGO");
             btnLancarDado.setDisable(true);
+
+            // --- NOVA ANIMAÇÃO GIGANTE NO CENTRO DO ECRÃ ---
+            Label lblVitoriaGigante = new Label(mensagemFinal);
+            lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 70));
+            lblVitoriaGigante.setTextFill(corVitoria);
+
+            // Adicionar uma sombra para ler melhor por cima do tabuleiro
+            DropShadow sombra = new DropShadow();
+            sombra.setRadius(15);
+            sombra.setOffsetX(5);
+            sombra.setOffsetY(5);
+            sombra.setColor(Color.color(0, 0, 0, 0.7));
+            lblVitoriaGigante.setEffect(sombra);
+
+            // Adicionar o texto por cima do tabuleiro (ao centro)
+            areaJogo.getChildren().add(lblVitoriaGigante);
+
+            // Animação: Começa minúsculo e cresce rapidamente (Efeito Pop-up)
+            lblVitoriaGigante.setScaleX(0.0);
+            lblVitoriaGigante.setScaleY(0.0);
+
+            ScaleTransition st = new ScaleTransition(Duration.millis(800), lblVitoriaGigante);
+            st.setToX(1.3); // Cresce mais do que o normal
+            st.setToY(1.3);
+            st.setCycleCount(2); // Dá o "salto" e volta um bocadinho atrás
+            st.setAutoReverse(true);
+
+            st.setOnFinished(e -> {
+                // Depois do impacto, assenta no tamanho normal (1.0)
+                ScaleTransition st2 = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
+                st2.setToX(1.0);
+                st2.setToY(1.0);
+                st2.play();
+            });
+
+            st.play();
         }
     }
-
     private void configurarObstaculosFixos() {
         int[][] escadasPos = {{5, 25}, {14, 48}, {42, 63}, {74, 95}};
         int[][] cobrasPos = {{32, 12}, {56, 26}, {87, 66}, {98, 79}};
