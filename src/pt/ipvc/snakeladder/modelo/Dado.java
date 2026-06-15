@@ -3,19 +3,16 @@ package pt.ipvc.snakeladder.modelo;
 import java.util.Random;
 
 public class Dado {
-    private final int faces;
-    private final Random random;
+    private int valor; // O atributo definido no teu UML
 
-    public Dado() {
-        this.faces = 6;
-        this.random = new Random();
+    public int rolar() {
+        Random random = new Random();
+        this.valor = random.nextInt(6) + 1; // Guarda o valor gerado
+        return this.valor;
     }
 
-    /**
-     * Rola o dado e devolve um valor aleatório.
-     * @return um número inteiro entre 1 e 6.
-     */
-    public int rolar() {
-        return random.nextInt(faces) + 1;
+    // O método que a nova interface está a pedir!
+    public int getValor() {
+        return this.valor;
     }
 }
