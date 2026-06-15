@@ -2,6 +2,7 @@ package pt.ipvc.snakeladder;
 
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -23,6 +24,8 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import pt.ipvc.snakeladder.modelo.Jogo;
 import pt.ipvc.snakeladder.modelo.Jogador;
+import pt.ipvc.snakeladder.rede.ClienteJogo;
+import pt.ipvc.snakeladder.rede.ServidorJogo;
 
 import java.util.Optional;
 
@@ -31,11 +34,8 @@ public class Main extends Application {
     private Jogo motorJogo;
     private Jogador jogador1;
     private Jogador jogador2;
-
     private Circle pecaJogador1;
     private Circle pecaJogador2;
-
-    // REDUZIDO PARA 50: O tabuleiro passa para 500px, fazendo com que o painel inferior caiba no ecrã!
     private final int TAMANHO_CASA = 50;
 
     private Label lblTurnoStatus;
@@ -44,13 +44,17 @@ public class Main extends Application {
     private Label lblTituloPainel;
     private Button btnLancarDado;
 
-    // Controla se o segundo jogador é o Computador
     private boolean modoBot = false;
+
+    // --- VARIÁVEIS DE REDE ---
+    private boolean modoRede = false;
+    private boolean souHost = false;
+    private ServidorJogo servidor;
+    private ClienteJogo cliente;
 
     @Override
     public void start(Stage primaryStage) {
         motorJogo = new Jogo();
-
         jogador1 = new Jogador(Color.DODGERBLUE);
         jogador2 = new Jogador(Color.ORANGE);
 
@@ -64,22 +68,28 @@ public class Main extends Application {
 
         DropShadow sombraPaineis = new DropShadow(15, 0, 5, Color.color(0, 0, 0, 0.08));
 
-        // --- TOPO: Menu Dropdown para Escolha de Modo ---
-        HBox barraTopo = new HBox();
+        // --- TOPO: Menus ---
+        HBox barraTopo = new HBox(15);
         barraTopo.setStyle("-fx-background-color: #ffffff; -fx-padding: 10px 20px;");
         barraTopo.setEffect(new DropShadow(5, 0, 2, Color.color(0, 0, 0, 0.05)));
+        barraTopo.setAlignment(Pos.CENTER_LEFT);
 
-        MenuButton btnNovoJogo = new MenuButton("🔄 Novo Jogo");
-        btnNovoJogo.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-text-fill: #334155;");
-
+        MenuButton btnNovoJogo = new MenuButton("🔄 Novo Jogo Local");
+        btnNovoJogo.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-text-fill: #334155;");
         MenuItem itemLocal = new MenuItem("👥 2 Jogadores (Local)");
         MenuItem itemBot = new MenuItem("🤖 Jogador vs Bot");
         btnNovoJogo.getItems().addAll(itemLocal, itemBot);
 
-        barraTopo.getChildren().add(btnNovoJogo);
+        MenuButton btnRede = new MenuButton("🌐 Multiplayer Online");
+        btnRede.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-text-fill: #334155;");
+        MenuItem itemHost = new MenuItem("Criar Sala (Host)");
+        MenuItem itemClient = new MenuItem("Entrar em Sala (Client)");
+        btnRede.getItems().addAll(itemHost, itemClient);
+
+        barraTopo.getChildren().addAll(btnNovoJogo, btnRede);
         root.setTop(barraTopo);
 
-        // --- CENTRO: Tabuleiro Otimizado ---
+        // --- CENTRO: Tabuleiro ---
         StackPane areaJogo = new StackPane();
         areaJogo.setEffect(sombraPaineis);
         BorderPane.setMargin(areaJogo, new Insets(15, 10, 15, 20));
@@ -134,7 +144,7 @@ public class Main extends Application {
         painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado);
         root.setRight(painelLateral);
 
-        // --- BOTTOM: Menu de Estado Limpo ---
+        // --- BOTTOM: Menu de Estado ---
         HBox barraInferior = new HBox();
         barraInferior.setStyle("-fx-background-color: #ffffff; -fx-padding: 15px 25px; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px; -fx-border-width: 1px;");
         barraInferior.setEffect(sombraPaineis);
@@ -172,29 +182,74 @@ public class Main extends Application {
         barraInferior.getChildren().addAll(statusEsquerda, spacer, statusDireita);
         root.setBottom(barraInferior);
 
-        // --- ACÇÃO DO BOTÃO DO DADO ---
-        btnLancarDado.setOnAction(e -> processarJogada());
+        // --- ACÇÕES DOS BOTÕES E REDE ---
+        btnLancarDado.setOnAction(e -> {
+            if (!motorJogo.isJogoTerminado()) {
+                int valorSorteado = motorJogo.getDado().rolar();
 
-        // --- ACÇÕES DO SELECÇÃO DE MODOS ---
-        itemLocal.setOnAction(e -> reiniciarJogoCompleto(false, gc, canvas));
-        itemBot.setOnAction(e -> reiniciarJogoCompleto(true, gc, canvas));
+                // Transmissão por Rede
+                if (modoRede) {
+                    if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
+                    else if (!souHost && cliente != null) cliente.enviarJogada(valorSorteado);
+                }
 
-        // --- LISTENERS REATIVOS ---
+                processarJogadaSincronizada(valorSorteado);
+            }
+        });
+
+        itemLocal.setOnAction(e -> reiniciarJogo(false, gc, canvas));
+        itemBot.setOnAction(e -> reiniciarJogo(true, gc, canvas));
+
+        itemHost.setOnAction(e -> {
+            servidor = new ServidorJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
+            servidor.iniciarServidor(5000);
+            modoRede = true;
+            souHost = true;
+            reiniciarJogo(false, gc, canvas);
+            lblTurnoStatus.setText("SALA CRIADA! JOGAS PRIMEIRO.");
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.setTitle("Modo Servidor");
+            info.setHeaderText("Sala aberta com sucesso!");
+            info.setContentText("Podes passar o teu IP local ao teu colega para ele entrar no jogo.");
+            info.show();
+        });
+
+        itemClient.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog("127.0.0.1");
+            dialog.setTitle("Ligar a Sala");
+            dialog.setHeaderText("Ligar ao Computador do Host");
+            dialog.setContentText("Insere o IP do Servidor:");
+            dialog.showAndWait().ifPresent(ip -> {
+                cliente = new ClienteJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
+                cliente.conectar(ip, 5000);
+                modoRede = true;
+                souHost = false;
+                reiniciarJogo(false, gc, canvas);
+
+                btnLancarDado.setDisable(true); // O Host joga sempre primeiro
+                lblTituloPainel.setText("ADVERSÁRIO");
+                lblTituloPainel.setTextFill(jogador1.getCor());
+                lblTurnoStatus.setText("A AGUARDAR JOGADA DO HOST...");
+                lblTurnoStatus.setTextFill(jogador1.getCor());
+                lblEstadoDetalhado.setText("Adversário (Azul): Casa 1 | Tu (Laranja): Casa 1");
+            });
+        });
+
+        // --- LISTENERS ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int novaPos = newVal.intValue();
             atualizarPosicaoGrafica(jogador1, pecaJogador1, novaPos, -4);
             atualizarBarraEstado();
-            verificarCondicaoVitoria(1, novaPos);
+            verificarCondicaoVitoria((modoRede && !souHost) ? 2 : 1, novaPos);
         });
 
         jogador2.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int novaPos = newVal.intValue();
             atualizarPosicaoGrafica(jogador2, pecaJogador2, novaPos, 4);
             atualizarBarraEstado();
-            verificarCondicaoVitoria(modoBot ? 99 : 2, novaPos);
+            verificarCondicaoVitoria((modoRede && souHost) ? 2 : (modoBot ? 99 : 2), novaPos);
         });
 
-        // --- SCROLL PANE ---
         ScrollPane scrollPane = new ScrollPane(root);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(true);
@@ -205,7 +260,6 @@ public class Main extends Application {
             event.consume();
         });
 
-        // Dimensões ideais para portáteis sem causar clipping
         Scene scene = new Scene(scrollPane, 820, 660);
         primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
         primaryStage.setScene(scene);
@@ -213,41 +267,42 @@ public class Main extends Application {
         primaryStage.show();
     }
 
-    // --- MOTOR DOS TURNOS E INTELIGÊNCIA DO BOT ---
-    private void processarJogada() {
+    private void processarJogadaSincronizada(int valorDado) {
         if (motorJogo.isJogoTerminado()) return;
 
-        int indexContexto = motorJogo.getJogadorAtualIndex();
-        String prefixoTexto = (indexContexto == 0) ? "Tu tiraste" : (modoBot ? "O Bot tirou" : "O Adversário tirou");
+        int indexAtual = motorJogo.getJogadorAtualIndex();
 
-        motorJogo.jogarTurno();
-        lblDadoResultado.setText(prefixoTexto + " um " + motorJogo.getDado().getValor() + "!");
+        boolean euJoguei = (!modoRede) ? (indexAtual == 0) : ((souHost && indexAtual == 0) || (!souHost && indexAtual == 1));
+        String prefixoTexto = euJoguei ? "Tu tiraste" : "O Adversário tirou";
+        if (!modoRede && modoBot && indexAtual == 1) prefixoTexto = "O Bot tirou";
+
+        motorJogo.jogarTurno(valorDado); // Aplica o mesmo valor matemático nos dois computadores
+        lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
 
         if (motorJogo.isJogoTerminado()) return;
 
         int seguinteIndex = motorJogo.getJogadorAtualIndex();
         Jogador seguinteJogador = motorJogo.getJogadores().get(seguinteIndex);
 
-        if (modoBot && seguinteIndex == 1) {
-            // Configura o visual para a jogada automática do Computador
+        if (!modoRede && modoBot && seguinteIndex == 1) {
             lblTituloPainel.setText("BOT (Laranja)");
             lblTituloPainel.setTextFill(jogador2.getCor());
             lblTurnoStatus.setText("TURNO DO ADVERSÁRIO (BOT...)");
             lblTurnoStatus.setTextFill(jogador2.getCor());
-            btnLancarDado.setDisable(true); // Impede cliques manuais durante o turno do bot
+            btnLancarDado.setDisable(true);
 
-            // Cria um delay de 1.2 segundos para simular a decisão do Bot
             PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.2));
-            atrasoIA.setOnFinished(evt -> processarJogada());
+            atrasoIA.setOnFinished(evt -> processarJogadaSincronizada(motorJogo.getDado().rolar()));
             atrasoIA.play();
         } else {
-            // Devolve o controlo ao Jogador Humano
-            lblTituloPainel.setText(seguinteIndex == 0 ? "O TEU TURNO" : "ADVERSÁRIO");
-            lblTituloPainel.setTextFill(seguinteJogador.getCor());
-            lblTurnoStatus.setText(seguinteIndex == 0 ? "A TUA VEZ DE JOGAR" : "TURNO DO ADVERSÁRIO");
-            lblTurnoStatus.setTextFill(seguinteJogador.getCor());
-            btnLancarDado.setDisable(false);
+            boolean eMinhaVez = (!modoRede) ? true : ((souHost && seguinteIndex == 0) || (!souHost && seguinteIndex == 1));
 
+            lblTituloPainel.setText(eMinhaVez ? "O TEU TURNO" : "ADVERSÁRIO");
+            lblTituloPainel.setTextFill(seguinteJogador.getCor());
+            lblTurnoStatus.setText(eMinhaVez ? "A TUA VEZ DE JOGAR" : "TURNO DO ADVERSÁRIO");
+            lblTurnoStatus.setTextFill(seguinteJogador.getCor());
+
+            btnLancarDado.setDisable(!eMinhaVez);
             if (seguinteIndex == 0) {
                 btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
             } else {
@@ -256,40 +311,35 @@ public class Main extends Application {
         }
     }
 
-    private void reiniciarJogoCompleto(boolean ativarBot, GraphicsContext canvasGc, Canvas canvasElemento) {
-        Alert confirmacao = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmacao.setTitle("Reiniciar Partida");
-        confirmacao.setHeaderText(ativarBot ? "Iniciar modo Jogador vs Bot?" : "Iniciar modo Local (2 Jogadores)?");
-        confirmacao.setContentText("Todo o progresso atual do tabuleiro será perdido. Pretendes continuar?");
+    private void reiniciarJogo(boolean ativarBot, GraphicsContext gc, Canvas canvas) {
+        this.modoBot = ativarBot;
+        if(modoBot) this.modoRede = false;
 
-        Optional<ButtonType> escolha = confirmacao.showAndWait();
-        if (escolha.isPresent() && escolha.get() == ButtonType.OK) {
-            this.modoBot = ativarBot;
+        motorJogo = new Jogo();
+        jogador1.posicaoProperty().set(1);
+        jogador2.posicaoProperty().set(1);
 
-            motorJogo = new Jogo();
-            jogador1.posicaoProperty().set(1);
-            jogador2.posicaoProperty().set(1);
+        motorJogo.adicionarJogador(jogador1);
+        motorJogo.adicionarJogador(jogador2);
+        configurarObstaculosFixos();
+        motorJogo.iniciar();
 
-            motorJogo.adicionarJogador(jogador1);
-            motorJogo.adicionarJogador(jogador2);
-            configurarObstaculosFixos();
-            motorJogo.iniciar();
+        lblTituloPainel.setText("O TEU TURNO");
+        lblTituloPainel.setTextFill(jogador1.getCor());
+        lblTurnoStatus.setText("A TUA VEZ DE JOGAR");
+        lblTurnoStatus.setTextFill(jogador1.getCor());
 
-            lblTituloPainel.setText("O TEU TURNO");
-            lblTituloPainel.setTextFill(jogador1.getCor());
-            lblTurnoStatus.setText("A TUA VEZ DE JOGAR");
-            lblTurnoStatus.setTextFill(jogador1.getCor());
-            lblEstadoDetalhado.setText("Tu (Azul): Casa 1  |  " + (ativarBot ? "Bot" : "Adversário") + ": Casa 1");
-            lblDadoResultado.setText("[ Jogo Reiniciado ]");
-            btnLancarDado.setDisable(false);
-            btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
+        String oponente = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
+        lblEstadoDetalhado.setText("Tu (Azul): Casa 1  |  " + oponente + ": Casa 1");
+        lblDadoResultado.setText("[ Jogo Reiniciado ]");
+        btnLancarDado.setDisable(false);
+        btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
 
-            canvasGc.clearRect(0, 0, canvasElemento.getWidth(), canvasElemento.getHeight());
-            desenharTabuleiro(canvasGc);
-            desenharObstaculosVisuais(canvasGc);
-            atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4);
-            atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4);
-        }
+        gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        desenharTabuleiro(gc);
+        desenharObstaculosVisuais(gc);
+        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4);
+        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4);
     }
 
     private RadialGradient criarGradientePeca(Color corBase) {
@@ -301,7 +351,8 @@ public class Main extends Application {
     private void atualizarBarraEstado() {
         int posJ1 = jogador1.getPosicao() > 100 ? 100 : jogador1.getPosicao();
         int posJ2 = jogador2.getPosicao() > 100 ? 100 : jogador2.getPosicao();
-        lblEstadoDetalhado.setText("Tu (Azul): Casa " + posJ1 + "  |  " + (modoBot ? "Bot" : "Adversário") + ": Casa " + posJ2);
+        String oponente = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
+        lblEstadoDetalhado.setText("Tu (Azul): Casa " + posJ1 + "  |  " + oponente + ": Casa " + posJ2);
     }
 
     private void verificarCondicaoVitoria(int idJogador, int localizacao) {
@@ -324,7 +375,6 @@ public class Main extends Application {
     }
 
     private void configurarObstaculosFixos() {
-        // Exatamente 4 de cada, balanceados e sem qualquer colisão
         int[][] escadasPos = {{5, 25}, {14, 48}, {42, 63}, {74, 95}};
         int[][] cobrasPos = {{32, 12}, {56, 26}, {87, 66}, {98, 79}};
         for (int[] pos : escadasPos) motorJogo.getTabuleiro().adicionarObstaculo(new pt.ipvc.snakeladder.modelo.Escada(pos[0], pos[1]));
@@ -333,7 +383,7 @@ public class Main extends Application {
 
     private void desenharTabuleiro(GraphicsContext gc) {
         for (int linha = 0; linha < 10; linha++) {
-            for (int coluna = 0; coluna < 10; coluna++) { // Corrigido column++ para coluna++
+            for (int coluna = 0; coluna < 10; coluna++) {
                 int x = coluna * TAMANHO_CASA;
                 int y = linha * TAMANHO_CASA;
                 gc.setFill((linha + coluna) % 2 == 0 ? Color.web("#f8fafc") : Color.WHITE);
