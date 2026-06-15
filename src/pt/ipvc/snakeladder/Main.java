@@ -1,5 +1,6 @@
 package pt.ipvc.snakeladder;
 
+import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.RotateTransition;
@@ -50,19 +51,19 @@ public class Main extends Application {
     private Label lblDadoIcon;
     private Button btnLancarDado;
 
-    // Variável para guardar e limpar a mensagem de vitória do ecrã
     private Label lblVitoriaGigante = null;
 
     private boolean modoBot = false;
-
-    // --- VARIÁVEIS DE REDE ---
     private boolean modoRede = false;
     private boolean souHost = false;
     private ServidorJogo servidor;
     private ClienteJogo cliente;
 
-    // Array com as faces reais do dado para a interface gráfica
     private final String[] FACES_DADO = {"", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"};
+
+    // Filas de animação para garantir que os peões não cortam caminho!
+    private Timeline animacaoJ1;
+    private Timeline animacaoJ2;
 
     @Override
     public void start(Stage primaryStage) {
@@ -127,8 +128,8 @@ public class Main extends Application {
         pecaJogador2.setStrokeWidth(1.5);
         pecaJogador2.setEffect(new DropShadow(6, 2, 2, Color.color(0, 0, 0, 0.5)));
 
-        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4, false);
-        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4, false);
+        criarAnimacaoPosicao(pecaJogador1, 1, 1, -4, false);
+        criarAnimacaoPosicao(pecaJogador2, 1, 1, 4, false);
 
         camadaPecas.getChildren().addAll(pecaJogador1, pecaJogador2);
         areaJogo.getChildren().addAll(canvas, camadaPecas);
@@ -194,29 +195,13 @@ public class Main extends Application {
         barraInferior.getChildren().addAll(statusEsquerda, spacer, statusDireita);
         root.setBottom(barraInferior);
 
-        // --- ACÇÕES DOS BOTÕES E REDE (COM DADO REALISTA) ---
+        // --- ACÇÕES DOS BOTÕES ---
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
                 btnLancarDado.setDisable(true);
-
-                // Animação de rotação com efeito de salto (Bounce)
-                ScaleTransition st = new ScaleTransition(Duration.millis(250), lblDadoIcon);
-                st.setByX(0.5); st.setByY(0.5);
-                st.setAutoReverse(true); st.setCycleCount(2);
-
-                RotateTransition rt = new RotateTransition(Duration.millis(500), lblDadoIcon);
-                rt.setByAngle(360);
-                rt.setCycleCount(1);
-
-                // Embaralhamento rápido das faces do dado enquanto roda
-                Timeline shuffleFaces = new Timeline(new KeyFrame(Duration.millis(50), evt -> {
-                    lblDadoIcon.setText(FACES_DADO[(int)(Math.random() * 6) + 1]);
-                }));
-                shuffleFaces.setCycleCount(10); // 50ms x 10 = 500ms totais
-
-                rt.setOnFinished(anim -> {
+                animarDadoEExecutar(() -> {
                     int valorSorteado = motorJogo.getDado().rolar();
-                    lblDadoIcon.setText(FACES_DADO[valorSorteado]); // Fixa na face real sorteada!
+                    lblDadoIcon.setText(FACES_DADO[valorSorteado]);
 
                     if (modoRede) {
                         if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
@@ -224,10 +209,6 @@ public class Main extends Application {
                     }
                     processarJogadaSincronizada(valorSorteado);
                 });
-
-                st.play();
-                rt.play();
-                shuffleFaces.play();
             }
         });
 
@@ -237,15 +218,9 @@ public class Main extends Application {
         itemHost.setOnAction(e -> {
             servidor = new ServidorJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
             servidor.iniciarServidor(5000);
-            modoRede = true;
-            souHost = true;
+            modoRede = true; souHost = true;
             reiniciarJogo(false, gc, canvas);
             lblTurnoStatus.setText("SALA CRIADA! JOGAS PRIMEIRO.");
-            Alert info = new Alert(Alert.AlertType.INFORMATION);
-            info.setTitle("Modo Servidor");
-            info.setHeaderText("Sala aberta com sucesso!");
-            info.setContentText("Podes passar o teu IP local ao teu colega para ele entrar no jogo.");
-            info.show();
         });
 
         itemClient.setOnAction(e -> {
@@ -256,8 +231,7 @@ public class Main extends Application {
             dialog.showAndWait().ifPresent(ip -> {
                 cliente = new ClienteJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
                 cliente.conectar(ip, 5000);
-                modoRede = true;
-                souHost = false;
+                modoRede = true; souHost = false;
                 reiniciarJogo(false, gc, canvas);
 
                 btnLancarDado.setDisable(true);
@@ -265,40 +239,92 @@ public class Main extends Application {
                 lblTituloPainel.setTextFill(jogador1.getCor());
                 lblTurnoStatus.setText("A AGUARDAR JOGADA DO HOST...");
                 lblTurnoStatus.setTextFill(jogador1.getCor());
-                lblEstadoDetalhado.setText("Adversário (Azul): Casa 1 | Tu (Laranja): Casa 1");
             });
         });
 
-        // --- LISTENERS (COM ANIMAÇÃO SUAVE ATIVADA) ---
+        // --- LISTENERS REATIVOS: O SEGREDO DO SEQUENCIAMENTO DAS ANIMAÇÕES ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
+            int posAntiga = oldVal.intValue();
             int novaPos = newVal.intValue();
-            atualizarPosicaoGrafica(jogador1, pecaJogador1, novaPos, -4, true);
-            atualizarBarraEstado();
-            verificarCondicaoVitoria((modoRede && !souHost) ? 2 : 1, novaPos);
+            Timeline t = criarAnimacaoPosicao(pecaJogador1, posAntiga, novaPos, -4, true);
+
+            if (t != null) {
+                Runnable aoTerminar = () -> {
+                    atualizarBarraEstado();
+                    verificarCondicaoVitoria((modoRede && !souHost) ? 2 : 1, novaPos);
+                };
+
+                // Se o peão já está a saltar os dados, "põe na fila" o escorrega da cobra/escada!
+                if (animacaoJ1 != null && animacaoJ1.getStatus() == Animation.Status.RUNNING) {
+                    animacaoJ1.setOnFinished(e -> {
+                        animacaoJ1 = t;
+                        t.play();
+                        t.setOnFinished(e2 -> aoTerminar.run());
+                    });
+                } else {
+                    animacaoJ1 = t;
+                    t.play();
+                    t.setOnFinished(e -> aoTerminar.run());
+                }
+            }
         });
 
         jogador2.posicaoProperty().addListener((obs, oldVal, newVal) -> {
+            int posAntiga = oldVal.intValue();
             int novaPos = newVal.intValue();
-            atualizarPosicaoGrafica(jogador2, pecaJogador2, novaPos, 4, true);
-            atualizarBarraEstado();
-            verificarCondicaoVitoria((modoRede && souHost) ? 2 : (modoBot ? 99 : 2), novaPos);
+            Timeline t = criarAnimacaoPosicao(pecaJogador2, posAntiga, novaPos, 4, true);
+
+            if (t != null) {
+                Runnable aoTerminar = () -> {
+                    atualizarBarraEstado();
+                    verificarCondicaoVitoria((modoRede && souHost) ? 2 : (modoBot ? 99 : 2), novaPos);
+                };
+
+                if (animacaoJ2 != null && animacaoJ2.getStatus() == Animation.Status.RUNNING) {
+                    animacaoJ2.setOnFinished(e -> {
+                        animacaoJ2 = t;
+                        t.play();
+                        t.setOnFinished(e2 -> aoTerminar.run());
+                    });
+                } else {
+                    animacaoJ2 = t;
+                    t.play();
+                    t.setOnFinished(e -> aoTerminar.run());
+                }
+            }
         });
 
         ScrollPane scrollPane = new ScrollPane(root);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(true);
+        scrollPane.setFitToWidth(true); scrollPane.setFitToHeight(true);
         scrollPane.setStyle("-fx-background-color: #f1f5f9; -fx-background: #f1f5f9; -fx-border-color: transparent;");
         scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
-            double deltaY = event.getDeltaY();
-            scrollPane.setVvalue(scrollPane.getVvalue() - deltaY / 250.0);
+            scrollPane.setVvalue(scrollPane.getVvalue() - event.getDeltaY() / 250.0);
             event.consume();
         });
 
         Scene scene = new Scene(scrollPane, 820, 660);
         primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
         primaryStage.setScene(scene);
-        primaryStage.setResizable(false);
         primaryStage.show();
+    }
+
+    private void animarDadoEExecutar(Runnable acaoFinal) {
+        ScaleTransition st = new ScaleTransition(Duration.millis(250), lblDadoIcon);
+        st.setByX(0.5); st.setByY(0.5);
+        st.setAutoReverse(true); st.setCycleCount(2);
+
+        RotateTransition rt = new RotateTransition(Duration.millis(500), lblDadoIcon);
+        rt.setByAngle(360);
+        rt.setCycleCount(1);
+
+        Timeline shuffleFaces = new Timeline(new KeyFrame(Duration.millis(50), evt -> {
+            lblDadoIcon.setText(FACES_DADO[(int)(Math.random() * 6) + 1]);
+        }));
+        shuffleFaces.setCycleCount(10);
+
+        shuffleFaces.setOnFinished(anim -> acaoFinal.run());
+
+        st.play(); rt.play(); shuffleFaces.play();
     }
 
     private void processarJogadaSincronizada(int valorDado) {
@@ -310,9 +336,7 @@ public class Main extends Application {
         String prefixoTexto = euJoguei ? "Tu tiraste" : "O Adversário tirou";
         if (!modoRede && modoBot && indexAtual == 1) prefixoTexto = "O Bot tirou";
 
-        // Garante que o ícone atualiza visualmente para as jogadas do adversário ou bot
         lblDadoIcon.setText(FACES_DADO[valorDado]);
-
         motorJogo.jogarTurno(valorDado);
         lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
 
@@ -324,12 +348,18 @@ public class Main extends Application {
         if (!modoRede && modoBot && seguinteIndex == 1) {
             lblTituloPainel.setText("BOT (Laranja)");
             lblTituloPainel.setTextFill(jogador2.getCor());
-            lblTurnoStatus.setText("TURNO DO ADVERSÁRIO (BOT...)");
+            lblTurnoStatus.setText("TURNO DO BOT...");
             lblTurnoStatus.setTextFill(jogador2.getCor());
             btnLancarDado.setDisable(true);
 
             PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.5));
-            atrasoIA.setOnFinished(evt -> processarJogadaSincronizada(motorJogo.getDado().rolar()));
+            atrasoIA.setOnFinished(evt -> {
+                animarDadoEExecutar(() -> {
+                    int valorSorteadoBot = motorJogo.getDado().rolar();
+                    lblDadoIcon.setText(FACES_DADO[valorSorteadoBot]);
+                    processarJogadaSincronizada(valorSorteadoBot);
+                });
+            });
             atrasoIA.play();
         } else {
             boolean eMinhaVez = (!modoRede) ? true : ((souHost && seguinteIndex == 0) || (!souHost && seguinteIndex == 1));
@@ -340,11 +370,8 @@ public class Main extends Application {
             lblTurnoStatus.setTextFill(seguinteJogador.getCor());
 
             btnLancarDado.setDisable(!eMinhaVez);
-            if (seguinteIndex == 0) {
-                btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
-            } else {
-                btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #f97316, #ea580c); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
-            }
+            btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand; " +
+                    (seguinteIndex == 0 ? "-fx-background-color: linear-gradient(to right, #3b82f6, #2563eb);" : "-fx-background-color: linear-gradient(to right, #f97316, #ea580c);"));
         }
     }
 
@@ -361,7 +388,6 @@ public class Main extends Application {
         configurarObstaculosFixos();
         motorJogo.iniciar();
 
-        // Limpa o Pop-up de vitória anterior (Correção do Bug do Eduardo)
         if (lblVitoriaGigante != null) {
             areaJogo.getChildren().remove(lblVitoriaGigante);
             lblVitoriaGigante = null;
@@ -383,9 +409,8 @@ public class Main extends Application {
         desenharTabuleiro(gc);
         desenharObstaculosVisuais(gc);
 
-        // Coloca a "false" para no restart as peças não deslizarem desde o topo até à casa 1
-        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4, false);
-        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4, false);
+        criarAnimacaoPosicao(pecaJogador1, 1, 1, -4, false);
+        criarAnimacaoPosicao(pecaJogador2, 1, 1, 4, false);
     }
 
     private RadialGradient criarGradientePeca(Color corBase) {
@@ -422,7 +447,6 @@ public class Main extends Application {
             lblTituloPainel.setText("FIM DE JOGO");
             btnLancarDado.setDisable(true);
 
-            // Pop-up melhorado da Vitória
             if(lblVitoriaGigante == null) {
                 lblVitoriaGigante = new Label(mensagemFinal);
                 lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 70));
@@ -433,9 +457,6 @@ public class Main extends Application {
                 sombra.setColor(Color.color(0, 0, 0, 0.7));
                 lblVitoriaGigante.setEffect(sombra);
                 areaJogo.getChildren().add(lblVitoriaGigante);
-            } else {
-                lblVitoriaGigante.setText(mensagemFinal);
-                lblVitoriaGigante.setTextFill(corVitoria);
             }
 
             lblVitoriaGigante.setScaleX(0.0);
@@ -539,27 +560,56 @@ public class Main extends Application {
         }
     }
 
-    // --- A MAGIA DA ANIMAÇÃO DE DESLIZE ACONTECE AQUI ---
-    private void atualizarPosicaoGrafica(Jogador jogador, Circle circulo, int numeroCasa, double desvioX, boolean animar) {
-        if (numeroCasa > 100) numeroCasa = 100;
-        double[] pos = getCentroCasa(numeroCasa);
-        double destinoX = pos[0] + desvioX;
-        double destinoY = pos[1];
+    private Timeline criarAnimacaoPosicao(Circle circulo, int posAntiga, int novaPos, double desvioX, boolean animar) {
+        if (novaPos > 100) novaPos = 100;
 
-        if (animar) {
-            // Em vez de teletransporte, o JavaFX calcula e desenha a trajetória da peça!
-            Timeline deslize = new Timeline(
-                    new KeyFrame(Duration.millis(600),
-                            new KeyValue(circulo.centerXProperty(), destinoX),
-                            new KeyValue(circulo.centerYProperty(), destinoY)
-                    )
-            );
-            deslize.play();
-        } else {
-            // Usado apenas quando se reinicia o jogo para a peça ir direto para o início
-            circulo.setCenterX(destinoX);
-            circulo.setCenterY(destinoY);
+        if (!animar || posAntiga <= 0) {
+            double[] pos = getCentroCasa(novaPos);
+            circulo.setCenterX(pos[0] + desvioX);
+            circulo.setCenterY(pos[1]);
+            return null; // Nenhuma animação pendente
         }
+
+        Timeline timeline = new Timeline();
+        double tempoAcumulado = 0;
+
+        // Se for um movimento do dado (avança até 6 casas) -> Dá pequenos saltos pela trajetória
+        if (novaPos > posAntiga && (novaPos - posAntiga) <= 6) {
+            for (int i = posAntiga + 1; i <= novaPos; i++) {
+                double[] posAnterior = getCentroCasa(i - 1);
+                double[] posAtual = getCentroCasa(i);
+
+                double startX = posAnterior[0] + desvioX;
+                double startY = posAnterior[1];
+                double endX = posAtual[0] + desvioX;
+                double endY = posAtual[1];
+
+                double midX = startX + (endX - startX) / 2.0;
+                double midY = Math.min(startY, endY) - 25; // Sobe 25px no ar
+
+                tempoAcumulado += 150;
+                timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
+                        new KeyValue(circulo.centerXProperty(), midX, javafx.animation.Interpolator.EASE_OUT),
+                        new KeyValue(circulo.centerYProperty(), midY, javafx.animation.Interpolator.EASE_OUT)
+                ));
+
+                tempoAcumulado += 150;
+                timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
+                        new KeyValue(circulo.centerXProperty(), endX, javafx.animation.Interpolator.EASE_IN),
+                        new KeyValue(circulo.centerYProperty(), endY, javafx.animation.Interpolator.EASE_IN)
+                ));
+            }
+        } else {
+            // Se for uma Cobra ou Escada -> Desliza elegantemente do ponto onde está até ao destino!
+            double[] posDestino = getCentroCasa(novaPos);
+            tempoAcumulado += 600;
+            timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
+                    new KeyValue(circulo.centerXProperty(), posDestino[0] + desvioX, javafx.animation.Interpolator.EASE_BOTH),
+                    new KeyValue(circulo.centerYProperty(), posDestino[1], javafx.animation.Interpolator.EASE_BOTH)
+            ));
+        }
+
+        return timeline;
     }
 
     private int calcularNumeroCasa(int linha, int coluna) {
