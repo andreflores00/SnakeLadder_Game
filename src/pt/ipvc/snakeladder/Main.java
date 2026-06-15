@@ -32,7 +32,6 @@ import pt.ipvc.snakeladder.modelo.Jogador;
 import pt.ipvc.snakeladder.rede.ClienteJogo;
 import pt.ipvc.snakeladder.rede.ServidorJogo;
 
-
 import java.util.Optional;
 
 public class Main extends Application {
@@ -48,7 +47,11 @@ public class Main extends Application {
     private Label lblEstadoDetalhado;
     private Label lblDadoResultado;
     private Label lblTituloPainel;
+    private Label lblDadoIcon;
     private Button btnLancarDado;
+
+    // Variável para guardar e limpar a mensagem de vitória do ecrã
+    private Label lblVitoriaGigante = null;
 
     private boolean modoBot = false;
 
@@ -57,6 +60,9 @@ public class Main extends Application {
     private boolean souHost = false;
     private ServidorJogo servidor;
     private ClienteJogo cliente;
+
+    // Array com as faces reais do dado para a interface gráfica
+    private final String[] FACES_DADO = {"", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"};
 
     @Override
     public void start(Stage primaryStage) {
@@ -121,8 +127,8 @@ public class Main extends Application {
         pecaJogador2.setStrokeWidth(1.5);
         pecaJogador2.setEffect(new DropShadow(6, 2, 2, Color.color(0, 0, 0, 0.5)));
 
-        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4);
-        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4);
+        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4, false);
+        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4, false);
 
         camadaPecas.getChildren().addAll(pecaJogador1, pecaJogador2);
         areaJogo.getChildren().addAll(canvas, camadaPecas);
@@ -140,8 +146,8 @@ public class Main extends Application {
         lblTituloPainel.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 20));
         lblTituloPainel.setTextFill(jogador1.getCor());
 
-        Label lblDadoIcon = new Label("🎲");
-        lblDadoIcon.setFont(Font.font("System", 55));
+        lblDadoIcon = new Label("🎲");
+        lblDadoIcon.setFont(Font.font("System", 60));
 
         btnLancarDado = new Button("Lançar Dado");
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
@@ -188,32 +194,40 @@ public class Main extends Application {
         barraInferior.getChildren().addAll(statusEsquerda, spacer, statusDireita);
         root.setBottom(barraInferior);
 
-        // --- ACÇÕES DOS BOTÕES E REDE ---
+        // --- ACÇÕES DOS BOTÕES E REDE (COM DADO REALISTA) ---
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
-                // 1. Desativa o botão temporariamente para ninguém clicar duas vezes seguidas
                 btnLancarDado.setDisable(true);
 
-                // 2. Animação de rotação do Dado
-                RotateTransition rt = new RotateTransition(Duration.millis(400), lblDadoIcon);
-                rt.setByAngle(360); // Dá uma volta completa
+                // Animação de rotação com efeito de salto (Bounce)
+                ScaleTransition st = new ScaleTransition(Duration.millis(250), lblDadoIcon);
+                st.setByX(0.5); st.setByY(0.5);
+                st.setAutoReverse(true); st.setCycleCount(2);
+
+                RotateTransition rt = new RotateTransition(Duration.millis(500), lblDadoIcon);
+                rt.setByAngle(360);
                 rt.setCycleCount(1);
 
-                // 3. Só executa a jogada DEPOIS da animação do dado terminar
+                // Embaralhamento rápido das faces do dado enquanto roda
+                Timeline shuffleFaces = new Timeline(new KeyFrame(Duration.millis(50), evt -> {
+                    lblDadoIcon.setText(FACES_DADO[(int)(Math.random() * 6) + 1]);
+                }));
+                shuffleFaces.setCycleCount(10); // 50ms x 10 = 500ms totais
+
                 rt.setOnFinished(anim -> {
                     int valorSorteado = motorJogo.getDado().rolar();
+                    lblDadoIcon.setText(FACES_DADO[valorSorteado]); // Fixa na face real sorteada!
 
-                    // Transmissão por Rede
                     if (modoRede) {
                         if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
                         else if (!souHost && cliente != null) cliente.enviarJogada(valorSorteado);
                     }
-
                     processarJogadaSincronizada(valorSorteado);
                 });
 
-                // Inicia a animação
+                st.play();
                 rt.play();
+                shuffleFaces.play();
             }
         });
 
@@ -246,7 +260,7 @@ public class Main extends Application {
                 souHost = false;
                 reiniciarJogo(false, gc, canvas);
 
-                btnLancarDado.setDisable(true); // O Host joga sempre primeiro
+                btnLancarDado.setDisable(true);
                 lblTituloPainel.setText("ADVERSÁRIO");
                 lblTituloPainel.setTextFill(jogador1.getCor());
                 lblTurnoStatus.setText("A AGUARDAR JOGADA DO HOST...");
@@ -255,17 +269,17 @@ public class Main extends Application {
             });
         });
 
-        // --- LISTENERS ---
+        // --- LISTENERS (COM ANIMAÇÃO SUAVE ATIVADA) ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int novaPos = newVal.intValue();
-            atualizarPosicaoGrafica(jogador1, pecaJogador1, novaPos, -4);
+            atualizarPosicaoGrafica(jogador1, pecaJogador1, novaPos, -4, true);
             atualizarBarraEstado();
             verificarCondicaoVitoria((modoRede && !souHost) ? 2 : 1, novaPos);
         });
 
         jogador2.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int novaPos = newVal.intValue();
-            atualizarPosicaoGrafica(jogador2, pecaJogador2, novaPos, 4);
+            atualizarPosicaoGrafica(jogador2, pecaJogador2, novaPos, 4, true);
             atualizarBarraEstado();
             verificarCondicaoVitoria((modoRede && souHost) ? 2 : (modoBot ? 99 : 2), novaPos);
         });
@@ -291,12 +305,15 @@ public class Main extends Application {
         if (motorJogo.isJogoTerminado()) return;
 
         int indexAtual = motorJogo.getJogadorAtualIndex();
-
         boolean euJoguei = (!modoRede) ? (indexAtual == 0) : ((souHost && indexAtual == 0) || (!souHost && indexAtual == 1));
+
         String prefixoTexto = euJoguei ? "Tu tiraste" : "O Adversário tirou";
         if (!modoRede && modoBot && indexAtual == 1) prefixoTexto = "O Bot tirou";
 
-        motorJogo.jogarTurno(valorDado); // Aplica o mesmo valor matemático nos dois computadores
+        // Garante que o ícone atualiza visualmente para as jogadas do adversário ou bot
+        lblDadoIcon.setText(FACES_DADO[valorDado]);
+
+        motorJogo.jogarTurno(valorDado);
         lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
 
         if (motorJogo.isJogoTerminado()) return;
@@ -311,7 +328,7 @@ public class Main extends Application {
             lblTurnoStatus.setTextFill(jogador2.getCor());
             btnLancarDado.setDisable(true);
 
-            PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.2));
+            PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.5));
             atrasoIA.setOnFinished(evt -> processarJogadaSincronizada(motorJogo.getDado().rolar()));
             atrasoIA.play();
         } else {
@@ -344,6 +361,13 @@ public class Main extends Application {
         configurarObstaculosFixos();
         motorJogo.iniciar();
 
+        // Limpa o Pop-up de vitória anterior (Correção do Bug do Eduardo)
+        if (lblVitoriaGigante != null) {
+            areaJogo.getChildren().remove(lblVitoriaGigante);
+            lblVitoriaGigante = null;
+        }
+
+        lblDadoIcon.setText("🎲");
         lblTituloPainel.setText("O TEU TURNO");
         lblTituloPainel.setTextFill(jogador1.getCor());
         lblTurnoStatus.setText("A TUA VEZ DE JOGAR");
@@ -358,8 +382,10 @@ public class Main extends Application {
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         desenharTabuleiro(gc);
         desenharObstaculosVisuais(gc);
-        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4);
-        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4);
+
+        // Coloca a "false" para no restart as peças não deslizarem desde o topo até à casa 1
+        atualizarPosicaoGrafica(jogador1, pecaJogador1, 1, -4, false);
+        atualizarPosicaoGrafica(jogador2, pecaJogador2, 1, 4, false);
     }
 
     private RadialGradient criarGradientePeca(Color corBase) {
@@ -391,49 +417,40 @@ public class Main extends Application {
                 corVitoria = Color.CRIMSON;
             }
 
-            // Atualiza os textos normais do painel lateral
             lblTurnoStatus.setTextFill(corVitoria);
             lblTurnoStatus.setText(mensagemFinal);
             lblTituloPainel.setText("FIM DE JOGO");
             btnLancarDado.setDisable(true);
 
-            // --- NOVA ANIMAÇÃO GIGANTE NO CENTRO DO ECRÃ ---
-            Label lblVitoriaGigante = new Label(mensagemFinal);
-            lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 70));
-            lblVitoriaGigante.setTextFill(corVitoria);
+            // Pop-up melhorado da Vitória
+            if(lblVitoriaGigante == null) {
+                lblVitoriaGigante = new Label(mensagemFinal);
+                lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 70));
+                lblVitoriaGigante.setTextFill(corVitoria);
 
-            // Adicionar uma sombra para ler melhor por cima do tabuleiro
-            DropShadow sombra = new DropShadow();
-            sombra.setRadius(15);
-            sombra.setOffsetX(5);
-            sombra.setOffsetY(5);
-            sombra.setColor(Color.color(0, 0, 0, 0.7));
-            lblVitoriaGigante.setEffect(sombra);
+                DropShadow sombra = new DropShadow();
+                sombra.setRadius(15); sombra.setOffsetX(5); sombra.setOffsetY(5);
+                sombra.setColor(Color.color(0, 0, 0, 0.7));
+                lblVitoriaGigante.setEffect(sombra);
+                areaJogo.getChildren().add(lblVitoriaGigante);
+            } else {
+                lblVitoriaGigante.setText(mensagemFinal);
+                lblVitoriaGigante.setTextFill(corVitoria);
+            }
 
-            // Adicionar o texto por cima do tabuleiro (ao centro)
-            areaJogo.getChildren().add(lblVitoriaGigante);
-
-            // Animação: Começa minúsculo e cresce rapidamente (Efeito Pop-up)
             lblVitoriaGigante.setScaleX(0.0);
             lblVitoriaGigante.setScaleY(0.0);
-
             ScaleTransition st = new ScaleTransition(Duration.millis(800), lblVitoriaGigante);
-            st.setToX(1.3); // Cresce mais do que o normal
-            st.setToY(1.3);
-            st.setCycleCount(2); // Dá o "salto" e volta um bocadinho atrás
-            st.setAutoReverse(true);
-
+            st.setToX(1.3); st.setToY(1.3);
+            st.setCycleCount(2); st.setAutoReverse(true);
             st.setOnFinished(e -> {
-                // Depois do impacto, assenta no tamanho normal (1.0)
                 ScaleTransition st2 = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
-                st2.setToX(1.0);
-                st2.setToY(1.0);
-                st2.play();
+                st2.setToX(1.0); st2.setToY(1.0); st2.play();
             });
-
             st.play();
         }
     }
+
     private void configurarObstaculosFixos() {
         int[][] escadasPos = {{5, 25}, {14, 48}, {42, 63}, {74, 95}};
         int[][] cobrasPos = {{32, 12}, {56, 26}, {87, 66}, {98, 79}};
@@ -522,11 +539,27 @@ public class Main extends Application {
         }
     }
 
-    private void atualizarPosicaoGrafica(Jogador jogador, Circle circulo, int numeroCasa, double desvioX) {
+    // --- A MAGIA DA ANIMAÇÃO DE DESLIZE ACONTECE AQUI ---
+    private void atualizarPosicaoGrafica(Jogador jogador, Circle circulo, int numeroCasa, double desvioX, boolean animar) {
         if (numeroCasa > 100) numeroCasa = 100;
         double[] pos = getCentroCasa(numeroCasa);
-        circulo.setCenterX(pos[0] + desvioX);
-        circulo.setCenterY(pos[1]);
+        double destinoX = pos[0] + desvioX;
+        double destinoY = pos[1];
+
+        if (animar) {
+            // Em vez de teletransporte, o JavaFX calcula e desenha a trajetória da peça!
+            Timeline deslize = new Timeline(
+                    new KeyFrame(Duration.millis(600),
+                            new KeyValue(circulo.centerXProperty(), destinoX),
+                            new KeyValue(circulo.centerYProperty(), destinoY)
+                    )
+            );
+            deslize.play();
+        } else {
+            // Usado apenas quando se reinicia o jogo para a peça ir direto para o início
+            circulo.setCenterX(destinoX);
+            circulo.setCenterY(destinoY);
+        }
     }
 
     private int calcularNumeroCasa(int linha, int coluna) {
