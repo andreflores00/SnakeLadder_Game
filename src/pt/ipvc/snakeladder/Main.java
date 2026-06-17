@@ -1,3 +1,12 @@
+/**
+ * Classe principal da aplicação Snake and Ladder.
+ * Estende a classe Application do JavaFX e é responsável por construir
+ * toda a interface gráfica, gerir as animações dinâmicas e lidar com a
+ * comunicação de rede (Sockets) para o modo multiplayer.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder;
 
 import javafx.animation.Animation;

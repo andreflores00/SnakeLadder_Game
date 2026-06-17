@@ -1,3 +1,11 @@
+/**
+ * Representa o obstáculo "Escada" no tabuleiro.
+ * Herda da classe base Obstaculo e atua como um atalho estratégico,
+ * movendo o jogador da base para o topo (uma posição superior).
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.modelo;
 
 public class Escada extends Obstaculo {
