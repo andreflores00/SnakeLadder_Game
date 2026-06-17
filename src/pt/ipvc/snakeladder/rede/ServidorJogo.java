@@ -1,3 +1,11 @@
+/**
+ * Gere a criação de uma sala de jogo e atua como Host (Servidor).
+ * Utiliza Sockets TCP e Threads secundárias para ouvir e transmitir
+ * as jogadas de forma assíncrona, sem congelar a interface gráfica.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.rede;
 
 import java.io.*;

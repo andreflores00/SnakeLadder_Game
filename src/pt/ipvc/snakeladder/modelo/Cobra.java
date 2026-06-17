@@ -1,3 +1,11 @@
+/**
+ * Representa o obstáculo "Cobra" no tabuleiro.
+ * Herda da classe base Obstaculo e aplica uma penalização ao jogador,
+ * forçando-o a recuar da cabeça para a cauda (uma posição inferior).
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.modelo;
 
 public class Cobra extends Obstaculo {

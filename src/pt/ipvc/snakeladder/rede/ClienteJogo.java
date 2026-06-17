@@ -1,3 +1,11 @@
+/**
+ * Estabelece a ligação a um jogo remoto através do IP do Host.
+ * Atua como Cliente, utilizando Sockets TCP e Threads para receber
+ * e sincronizar as jogadas com o motor do jogo local.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.rede;
 
 import java.io.*;

@@ -1,3 +1,12 @@
+/**
+ * Representa o tabuleiro do jogo.
+ * Gere a coleção de obstáculos (cobras e escadas) e fornece métodos para
+ * verificar se uma determinada casa tem uma ação especial associada,
+ * aplicando assim a lógica do percurso.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.modelo;
 
 import java.util.ArrayList;
