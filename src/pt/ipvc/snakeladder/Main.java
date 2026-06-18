@@ -14,7 +14,6 @@ import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
-import javafx.animation.Timeline;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
