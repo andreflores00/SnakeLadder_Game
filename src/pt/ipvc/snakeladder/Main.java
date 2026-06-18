@@ -1,10 +1,7 @@
 package pt.ipvc.snakeladder;
 
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
 import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
-import javafx.animation.Timeline;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -30,10 +27,6 @@ import javafx.util.Duration;
 import pt.ipvc.snakeladder.modelo.Jogo;
 import pt.ipvc.snakeladder.modelo.Jogador;
 import pt.ipvc.snakeladder.rede.ClienteJogo;
-import pt.ipvc.snakeladder.rede.ServidorJogo;
-
-
-import java.util.Optional;
 
 public class Main extends Application {
 
