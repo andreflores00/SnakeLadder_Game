@@ -41,6 +41,9 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import javafx.scene.media.AudioClip;
+import java.net.URL;
+
 import pt.ipvc.snakeladder.modelo.Jogo;
 import pt.ipvc.snakeladder.modelo.Jogador;
 import pt.ipvc.snakeladder.rede.ClienteJogo;
@@ -66,7 +69,7 @@ public class Main extends Application {
     private TextArea txtHistorico;
 
     private Label lblVitoriaGigante = null;
-    private SequentialTransition animacaoVitoriaAtiva = null; // Para guardar a animação de vitória e poder pará-la
+    private SequentialTransition animacaoVitoriaAtiva = null;
 
     private boolean modoBot = false;
     private boolean modoRede = false;
@@ -74,14 +77,25 @@ public class Main extends Application {
     private ServidorJogo servidor;
     private ClienteJogo cliente;
 
+    // Nomes dos jogadores (com sugestões pré-definidas para agilizar)
+    private String nomeJ1 = "Dudz";
+    private String nomeJ2 = "Adversário";
+
+    // Sons do Jogo
+    private AudioClip somDado;
+    private AudioClip somEscada;
+    private AudioClip somCobra;
+    private AudioClip somVitoria;
+
     private final String[] FACES_DADO = {"", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"};
 
-    // Filas de animação para garantir que os peões não cortam caminho!
     private Timeline animacaoJ1;
     private Timeline animacaoJ2;
 
     @Override
     public void start(Stage primaryStage) {
+        carregarSons(); // Carrega os recursos de áudio logo ao abrir
+
         motorJogo = new Jogo();
         jogador1 = new Jogador(Color.DODGERBLUE);
         jogador2 = new Jogador(Color.ORANGE);
@@ -158,7 +172,7 @@ public class Main extends Application {
         painelLateral.setPrefWidth(240);
         BorderPane.setMargin(painelLateral, new Insets(15, 20, 15, 10));
 
-        lblTituloPainel = new Label("O TEU TURNO");
+        lblTituloPainel = new Label(nomeJ1.toUpperCase());
         lblTituloPainel.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 20));
         lblTituloPainel.setTextFill(jogador1.getCor());
 
@@ -184,7 +198,6 @@ public class Main extends Application {
         btnReiniciar.setMaxWidth(Double.MAX_VALUE);
         btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 8px 12px;");
 
-        // NOVO: Adicionar confirmação ao botão de Reiniciar
         btnReiniciar.setOnAction(e -> confirmarEExecutar(
                 "Reiniciar Jogo",
                 "Queres mesmo reiniciar a partida atual?",
@@ -208,7 +221,7 @@ public class Main extends Application {
         lblTurnoStatus.setFont(Font.font("System", FontWeight.BLACK, 15));
         lblTurnoStatus.setTextFill(jogador1.getCor());
 
-        lblEstadoDetalhado = new Label("Tu (Azul): Casa 1  |  Adversário: Casa 1");
+        lblEstadoDetalhado = new Label(nomeJ1 + " (Azul): Casa 1  |  " + nomeJ2 + " (Laranja): Casa 1");
         lblEstadoDetalhado.setFont(Font.font("System", FontWeight.NORMAL, 14));
         lblEstadoDetalhado.setTextFill(Color.web("#475569"));
 
@@ -236,6 +249,7 @@ public class Main extends Application {
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
                 btnLancarDado.setDisable(true);
+                tocarSom(somDado, 0.6); // Toca som do dado ao clicar
                 animarDadoEExecutar(() -> {
                     int valorSorteado = motorJogo.getDado().rolar();
                     lblDadoIcon.setText(FACES_DADO[valorSorteado]);
@@ -249,20 +263,26 @@ public class Main extends Application {
             }
         });
 
-        // NOVO: Adicionar confirmação aos itens do menu Novo Jogo
         itemLocal.setOnAction(e -> confirmarEExecutar(
                 "Novo Jogo Local",
                 "Iniciar nova partida para 2 Jogadores?",
-                () -> reiniciarJogo(false, gc, canvas)
+                () -> {
+                    pedirNomes(false);
+                    reiniciarJogo(false, gc, canvas);
+                }
         ));
 
         itemBot.setOnAction(e -> confirmarEExecutar(
                 "Novo Jogo contra Bot",
                 "Iniciar nova partida contra a Inteligência Artificial?",
-                () -> reiniciarJogo(true, gc, canvas)
+                () -> {
+                    pedirNomes(true);
+                    reiniciarJogo(true, gc, canvas);
+                }
         ));
 
         itemHost.setOnAction(e -> {
+            pedirNomes(true); // Só pede o nome local
             servidor = new ServidorJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
             servidor.iniciarServidor(5000);
             modoRede = true; souHost = true;
@@ -271,6 +291,7 @@ public class Main extends Application {
         });
 
         itemClient.setOnAction(e -> {
+            pedirNomes(true); // Só pede o nome local
             TextInputDialog dialog = new TextInputDialog("127.0.0.1");
             dialog.setTitle("Ligar a Sala");
             dialog.setHeaderText("Ligar ao Computador do Host");
@@ -289,7 +310,7 @@ public class Main extends Application {
             });
         });
 
-        // --- LISTENERS REATIVOS: O SEGREDO DO SEQUENCIAMENTO DAS ANIMAÇÕES ---
+        // --- LISTENERS REATIVOS ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int posAntiga = oldVal.intValue();
             int novaPos = newVal.intValue();
@@ -352,11 +373,73 @@ public class Main extends Application {
         primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
         primaryStage.setScene(scene);
         primaryStage.show();
+
+        // Pede os nomes logo na abertura da App para personalizar a primeira partida
+        Platform.runLater(() -> {
+            pedirNomes(false);
+            atualizarTextosComNomes();
+        });
     }
 
-    // NOVO: Método auxiliar para mostrar a caixa de confirmação
+    // --- MÉTODOS DE ÁUDIO ---
+    private void carregarSons() {
+        try {
+            // Repara que agora adicionámos o "/resources/" antes do nome do ficheiro
+            URL urlDado = getClass().getResource("/resources/dado.wav");
+            if (urlDado != null) somDado = new AudioClip(urlDado.toExternalForm());
+
+            URL urlEscada = getClass().getResource("/resources/escada.wav");
+            if (urlEscada != null) somEscada = new AudioClip(urlEscada.toExternalForm());
+
+            URL urlCobra = getClass().getResource("/resources/cobra.mp3");
+            if (urlCobra != null) somCobra = new AudioClip(urlCobra.toExternalForm());
+
+            URL urlVitoria = getClass().getResource("/resources/vitoria.wav");
+            if (urlVitoria != null) somVitoria = new AudioClip(urlVitoria.toExternalForm());
+
+        } catch (Exception e) {
+            System.out.println("Aviso: Ficheiros de som não configurados. A jogar em modo silencioso.");
+        }
+    }
+
+    private void tocarSom(AudioClip clip, double duracaoSegundos) {
+        if (clip != null) {
+            clip.play(); // Começa a tocar o som
+
+            // Se a duração for maior que zero, cria um temporizador para o desligar
+            if (duracaoSegundos > 0) {
+                PauseTransition pararSom = new PauseTransition(Duration.seconds(duracaoSegundos));
+                pararSom.setOnFinished(e -> clip.stop());
+                pararSom.play();
+            }
+        }
+    }
+
+    // --- GESTÃO DE NOMES ---
+    private void pedirNomes(boolean modoSoP1) {
+        TextInputDialog d1 = new TextInputDialog(nomeJ1);
+        d1.setTitle("Registo de Jogador");
+        d1.setHeaderText("Configuração: Jogador 1");
+        d1.setContentText("Introduz o teu nome (Peão Azul):");
+        d1.showAndWait().ifPresent(n -> nomeJ1 = n.trim().isEmpty() ? "Jogador 1" : n);
+
+        if (!modoSoP1) {
+            TextInputDialog d2 = new TextInputDialog("André");
+            d2.setTitle("Registo de Jogador");
+            d2.setHeaderText("Configuração: Jogador 2");
+            d2.setContentText("Introduz o nome do oponente (Peão Laranja):");
+            d2.showAndWait().ifPresent(n -> nomeJ2 = n.trim().isEmpty() ? "Jogador 2" : n);
+        } else {
+            nomeJ2 = modoRede ? "Adversário" : "Bot";
+        }
+    }
+
+    private void atualizarTextosComNomes() {
+        lblTituloPainel.setText(nomeJ1.toUpperCase());
+        lblEstadoDetalhado.setText(nomeJ1 + " (Azul): Casa 1  |  " + nomeJ2 + " (Laranja): Casa 1");
+    }
+
     private void confirmarEExecutar(String titulo, String cabecalho, Runnable acaoConfirmada) {
-        // Se o jogo já terminou ou ainda não começou de facto (ambos na casa 1), não vale a pena pedir confirmação
         if (motorJogo.isJogoTerminado() || (jogador1.getPosicao() == 1 && jogador2.getPosicao() == 1)) {
             acaoConfirmada.run();
             return;
@@ -378,6 +461,8 @@ public class Main extends Application {
     }
 
     private void animarDadoEExecutar(Runnable acaoFinal) {
+        tocarSom(somDado, 0.6); // O som dispara exatamente quando a animação começa!
+
         ScaleTransition st = new ScaleTransition(Duration.millis(250), lblDadoIcon);
         st.setByX(0.5); st.setByY(0.5);
         st.setAutoReverse(true); st.setCycleCount(2);
@@ -402,8 +487,8 @@ public class Main extends Application {
         int indexAtual = motorJogo.getJogadorAtualIndex();
         boolean euJoguei = (!modoRede) ? (indexAtual == 0) : ((souHost && indexAtual == 0) || (!souHost && indexAtual == 1));
 
-        String prefixoTexto = euJoguei ? "Tu tiraste" : "O Adversário tirou";
-        if (!modoRede && modoBot && indexAtual == 1) prefixoTexto = "O Bot tirou";
+        String nomeResponsavel = indexAtual == 0 ? nomeJ1 : nomeJ2;
+        String prefixoTexto = nomeResponsavel + " tirou";
 
         lblDadoIcon.setText(FACES_DADO[valorDado]);
 
@@ -413,13 +498,13 @@ public class Main extends Application {
 
         lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
 
-        String nomeJogador = euJoguei ? "Tu (Azul)" : (modoBot && indexAtual == 1 ? "Bot (Laranja)" : "Adversário (Laranja)");
-        String logLinha = nomeJogador + " tirou " + valorDado + ".\n➔ Casa " + posAntiga + " para " + posNova;
+        String corLog = indexAtual == 0 ? "(Azul)" : "(Laranja)";
+        String logLinha = nomeResponsavel + " " + corLog + " tirou " + valorDado + ".\n➔ Casa " + posAntiga + " para " + posNova;
 
         if (posNova > posAntiga + valorDado && posNova != 100) {
-            logLinha += " \uD83E\uDE9C (Escada!)";
+            logLinha += " \uD83E\uDE9C (Subiu uma Escada!)";
         } else if (posNova < posAntiga) {
-            logLinha += " \uD83D\uDC0D (Cobra!)";
+            logLinha += " \uD83D\uDC0D (Desceu uma Cobra!)";
         }
 
         if (txtHistorico != null) {
@@ -430,16 +515,18 @@ public class Main extends Application {
 
         int seguinteIndex = motorJogo.getJogadorAtualIndex();
         Jogador seguinteJogador = motorJogo.getJogadores().get(seguinteIndex);
+        String nomeSeguinte = seguinteIndex == 0 ? nomeJ1 : nomeJ2;
 
         if (!modoRede && modoBot && seguinteIndex == 1) {
-            lblTituloPainel.setText("BOT (Laranja)");
+            lblTituloPainel.setText(nomeSeguinte.toUpperCase());
             lblTituloPainel.setTextFill(jogador2.getCor());
-            lblTurnoStatus.setText("TURNO DO BOT...");
+            lblTurnoStatus.setText("A PENSAR...");
             lblTurnoStatus.setTextFill(jogador2.getCor());
             btnLancarDado.setDisable(true);
 
             PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.5));
             atrasoIA.setOnFinished(evt -> {
+                tocarSom(somDado, 0.6);
                 animarDadoEExecutar(() -> {
                     int valorSorteadoBot = motorJogo.getDado().rolar();
                     lblDadoIcon.setText(FACES_DADO[valorSorteadoBot]);
@@ -450,9 +537,9 @@ public class Main extends Application {
         } else {
             boolean eMinhaVez = (!modoRede) ? true : ((souHost && seguinteIndex == 0) || (!souHost && seguinteIndex == 1));
 
-            lblTituloPainel.setText(eMinhaVez ? "O TEU TURNO" : "ADVERSÁRIO");
+            lblTituloPainel.setText(nomeSeguinte.toUpperCase());
             lblTituloPainel.setTextFill(seguinteJogador.getCor());
-            lblTurnoStatus.setText(eMinhaVez ? "A TUA VEZ DE JOGAR" : "TURNO DO ADVERSÁRIO");
+            lblTurnoStatus.setText(eMinhaVez ? "A TUA VEZ DE JOGAR" : "A AGUARDAR JOGADA...");
             lblTurnoStatus.setTextFill(seguinteJogador.getCor());
 
             btnLancarDado.setDisable(!eMinhaVez);
@@ -475,7 +562,6 @@ public class Main extends Application {
         motorJogo.iniciar();
 
         if (lblVitoriaGigante != null) {
-            // Se houver uma animação a correr, pára-a para não haver bugs visuais
             if (animacaoVitoriaAtiva != null) {
                 animacaoVitoriaAtiva.stop();
             }
@@ -484,17 +570,16 @@ public class Main extends Application {
         }
 
         lblDadoIcon.setText("🎲");
-        lblTituloPainel.setText("O TEU TURNO");
+        lblTituloPainel.setText(nomeJ1.toUpperCase());
         lblTituloPainel.setTextFill(jogador1.getCor());
         lblTurnoStatus.setText("A TUA VEZ DE JOGAR");
         lblTurnoStatus.setTextFill(jogador1.getCor());
 
-        String oponente = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
-        lblEstadoDetalhado.setText("Tu (Azul): Casa 1  |  " + oponente + ": Casa 1");
+        lblEstadoDetalhado.setText(nomeJ1 + " (Azul): Casa 1  |  " + nomeJ2 + " (Laranja): Casa 1");
         lblDadoResultado.setText("[ Jogo Reiniciado ]");
 
         if (txtHistorico != null) {
-            txtHistorico.setText("=== JOGO REINICIADO ===\nBoa sorte!\n\n");
+            txtHistorico.setText("=== JOGO REINICIADO ===\nBoa sorte, " + nomeJ1 + " e " + nomeJ2 + "!\n\n");
         }
 
         btnLancarDado.setDisable(false);
@@ -517,36 +602,37 @@ public class Main extends Application {
     private void atualizarBarraEstado() {
         int posJ1 = jogador1.getPosicao() > 100 ? 100 : jogador1.getPosicao();
         int posJ2 = jogador2.getPosicao() > 100 ? 100 : jogador2.getPosicao();
-        String oponente = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
-        lblEstadoDetalhado.setText("Tu (Azul): Casa " + posJ1 + "  |  " + oponente + ": Casa " + posJ2);
+        lblEstadoDetalhado.setText(nomeJ1 + " (Azul): Casa " + posJ1 + "  |  " + nomeJ2 + " (Laranja): Casa " + posJ2);
     }
 
-    // NOVO: Animação de vitória super melhorada
     private void verificarCondicaoVitoria(int idJogador, int localizacao) {
         if (motorJogo.isJogoTerminado() || localizacao >= 100) {
             String mensagemFinal;
             Color corVitoria;
 
             if (idJogador == 1) {
-                mensagemFinal = "GANHASTE!";
+                mensagemFinal = "VITÓRIA DE\n" + nomeJ1.toUpperCase() + "!";
                 corVitoria = Color.web("#10b981");
+                tocarSom(somVitoria, 5.0); // Dispara som de celebração
             } else if (idJogador == 99) {
                 mensagemFinal = "BOT VENCEU!";
                 corVitoria = Color.CRIMSON;
             } else {
-                mensagemFinal = "ADVERSÁRIO GANHOU!";
+                mensagemFinal = nomeJ2.toUpperCase() + "\nGANHOU!";
                 corVitoria = Color.CRIMSON;
             }
 
             lblTurnoStatus.setTextFill(corVitoria);
-            lblTurnoStatus.setText(mensagemFinal);
+            lblTurnoStatus.setText("PARTIDA TERMINADA");
             lblTituloPainel.setText("FIM DE JOGO");
             btnLancarDado.setDisable(true);
 
             if(lblVitoriaGigante == null) {
                 lblVitoriaGigante = new Label(mensagemFinal);
-                lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 70));
+                lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 65));
                 lblVitoriaGigante.setTextFill(corVitoria);
+                lblVitoriaGigante.setAlignment(Pos.CENTER);
+                lblVitoriaGigante.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
 
                 DropShadow sombra = new DropShadow();
                 sombra.setRadius(15); sombra.setOffsetX(5); sombra.setOffsetY(5);
@@ -555,38 +641,31 @@ public class Main extends Application {
                 areaJogo.getChildren().add(lblVitoriaGigante);
             }
 
-            // Preparação do estado inicial
             lblVitoriaGigante.setScaleX(0.5);
             lblVitoriaGigante.setScaleY(0.5);
             lblVitoriaGigante.setOpacity(0.0);
 
-            // 1. Fade in rápido
             FadeTransition fadeIn = new FadeTransition(Duration.millis(400), lblVitoriaGigante);
             fadeIn.setToValue(1.0);
 
-            // 2. Cresce até ficar ligeiramente maior (overshoot)
             ScaleTransition scaleUp = new ScaleTransition(Duration.millis(400), lblVitoriaGigante);
             scaleUp.setToX(1.4); scaleUp.setToY(1.4);
             scaleUp.setInterpolator(Interpolator.EASE_OUT);
 
-            // 3. Volta ao tamanho normal
             ScaleTransition scaleDown = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
             scaleDown.setToX(1.0); scaleDown.setToY(1.0);
             scaleDown.setInterpolator(Interpolator.EASE_IN);
 
-            // 4. Dá uma tremidela de festa
             RotateTransition wobble = new RotateTransition(Duration.millis(100), lblVitoriaGigante);
             wobble.setByAngle(10);
             wobble.setCycleCount(6);
             wobble.setAutoReverse(true);
 
-            // 5. Fica a pulsar indefinidamente no fim
             ScaleTransition pulsar = new ScaleTransition(Duration.millis(1000), lblVitoriaGigante);
             pulsar.setToX(1.08); pulsar.setToY(1.08);
             pulsar.setCycleCount(Animation.INDEFINITE);
             pulsar.setAutoReverse(true);
 
-            // Executar tudo em sequência
             animacaoVitoriaAtiva = new SequentialTransition(
                     new ParallelTransition(fadeIn, scaleUp),
                     scaleDown,
@@ -699,7 +778,6 @@ public class Main extends Application {
         Timeline timeline = new Timeline();
         double tempoAcumulado = 0;
 
-        // Se for um movimento do dado (avança até 6 casas) -> Dá pequenos saltos pela trajetória
         if (novaPos > posAntiga && (novaPos - posAntiga) <= 6) {
             for (int i = posAntiga + 1; i <= novaPos; i++) {
                 double[] posAnterior = getCentroCasa(i - 1);
@@ -711,7 +789,7 @@ public class Main extends Application {
                 double endY = posAtual[1];
 
                 double midX = startX + (endX - startX) / 2.0;
-                double midY = Math.min(startY, endY) - 25; // Sobe 25px no ar
+                double midY = Math.min(startY, endY) - 25;
 
                 tempoAcumulado += 150;
                 timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
@@ -726,8 +804,21 @@ public class Main extends Application {
                 ));
             }
         } else {
-            // Se for uma Cobra ou Escada -> Desliza elegantemente do ponto onde está até ao destino!
+            // Se for uma Cobra ou Escada -> Desliza elegantemente
             double[] posDestino = getCentroCasa(novaPos);
+
+            // NOVO: Descobre se está a subir ou a descer ANTES de criar o evento
+            boolean aSubir = novaPos > posAntiga;
+
+            // Adiciona um evento no instante ZERO da animação para tocar o som certo
+            timeline.getKeyFrames().add(new KeyFrame(Duration.ZERO, evt -> {
+                if (aSubir) {
+                    tocarSom(somEscada, 1.5); // A peça está a subir, toca escada
+                } else {
+                    tocarSom(somCobra, 1.5);  // A peça está a descer, toca cobra
+                }
+            }));
+
             tempoAcumulado += 600;
             timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
                     new KeyValue(circulo.centerXProperty(), posDestino[0] + desvioX, javafx.animation.Interpolator.EASE_BOTH),
