@@ -1,12 +1,3 @@
-/**
- * Classe principal da aplicação Snake and Ladder.
- * Estende a classe Application do JavaFX e é responsável por construir
- * toda a interface gráfica, gerir as animações dinâmicas e lidar com a
- * comunicação de rede (Sockets) para o modo multiplayer.
- *
- * @author André e Eduardo
- * @version 1.0
- */
 package pt.ipvc.snakeladder;
 
 import javafx.animation.Animation;
@@ -14,6 +5,7 @@ import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
+import javafx.animation.Timeline;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -43,6 +35,15 @@ import pt.ipvc.snakeladder.rede.ServidorJogo;
 
 import java.util.Optional;
 
+/**
+ * Classe principal da aplicação Snake and Ladder.
+ * Estende a classe Application do JavaFX e é responsável por construir
+ * toda a interface gráfica, gerir as animações dinâmicas e lidar com a
+ * comunicação de rede (Sockets) para o modo multiplayer.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 public class Main extends Application {
 
     private Jogo motorJogo;
@@ -162,7 +163,14 @@ public class Main extends Application {
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
         btnLancarDado.setEffect(new DropShadow(8, 0, 3, Color.color(0.23, 0.51, 0.96, 0.4)));
 
-        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado);
+        Region espacador = new Region();
+        VBox.setVgrow(espacador, Priority.ALWAYS);
+
+        Button btnDesistir = new Button("🏳️ Reiniciar Rápido");
+        btnDesistir.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
+        btnDesistir.setOnAction(e -> reiniciarJogo(modoBot, gc, canvas));
+
+        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnDesistir);
         root.setRight(painelLateral);
 
         // --- BOTTOM: Menu de Estado ---
