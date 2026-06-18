@@ -59,6 +59,7 @@ public class Main extends Application {
     private Label lblTituloPainel;
     private Label lblDadoIcon;
     private Button btnLancarDado;
+    private TextArea txtHistorico;
 
     private Label lblVitoriaGigante = null;
 
@@ -145,11 +146,11 @@ public class Main extends Application {
         root.setCenter(areaJogo);
 
         // --- LATERAL: Painel de Controlo ---
-        VBox painelLateral = new VBox(20);
+        VBox painelLateral = new VBox(15);
         painelLateral.setStyle("-fx-background-color: #ffffff; -fx-padding: 25px 20px; -fx-background-radius: 12px;");
         painelLateral.setEffect(sombraPaineis);
         painelLateral.setAlignment(Pos.TOP_CENTER);
-        painelLateral.setPrefWidth(220);
+        painelLateral.setPrefWidth(240);
         BorderPane.setMargin(painelLateral, new Insets(15, 20, 15, 10));
 
         lblTituloPainel = new Label("O TEU TURNO");
@@ -163,7 +164,25 @@ public class Main extends Application {
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
         btnLancarDado.setEffect(new DropShadow(8, 0, 3, Color.color(0.23, 0.51, 0.96, 0.4)));
 
-        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado);
+        // NOVO: Componentes do Histórico de Jogadas
+        Label lblHistorico = new Label("HISTÓRICO");
+        lblHistorico.setFont(Font.font("System", FontWeight.BLACK, 12));
+        lblHistorico.setTextFill(Color.web("#94a3b8"));
+
+        txtHistorico = new TextArea();
+        txtHistorico.setEditable(false);
+        txtHistorico.setWrapText(true);
+        txtHistorico.setFocusTraversable(false);
+        txtHistorico.setStyle("-fx-font-size: 12px; -fx-control-inner-background: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 6px;");
+        VBox.setVgrow(txtHistorico, Priority.ALWAYS); // Ocupa automaticamente o espaço restante do painel
+
+        // NOVO: Botão Reiniciar Estilizado
+        Button btnReiniciar = new Button("🔄 Reiniciar Jogo");
+        btnReiniciar.setMaxWidth(Double.MAX_VALUE);
+        btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 8px 12px;");
+        btnReiniciar.setOnAction(e -> reiniciarJogo(modoBot, gc, canvas));
+
+        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, lblHistorico, txtHistorico, btnReiniciar);
         root.setRight(painelLateral);
 
         // --- BOTTOM: Menu de Estado ---
@@ -346,8 +365,28 @@ public class Main extends Application {
         if (!modoRede && modoBot && indexAtual == 1) prefixoTexto = "O Bot tirou";
 
         lblDadoIcon.setText(FACES_DADO[valorDado]);
+
+        // Capturar o estado para registar no histórico
+        int posAntiga = motorJogo.getJogadores().get(indexAtual).getPosicao();
         motorJogo.jogarTurno(valorDado);
+        int posNova = motorJogo.getJogadores().get(indexAtual).getPosicao();
+
         lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
+
+        // NOVO: Adicionar jogada ao Histórico
+        String nomeJogador = euJoguei ? "Tu (Azul)" : (modoBot && indexAtual == 1 ? "Bot (Laranja)" : "Adversário (Laranja)");
+        String logLinha = nomeJogador + " tirou " + valorDado + ".\n➔ Casa " + posAntiga + " para " + posNova;
+
+        // Detetar obstáculos matematicamente para o histórico
+        if (posNova > posAntiga + valorDado && posNova != 100) {
+            logLinha += " 🪜 (Escada!)";
+        } else if (posNova < posAntiga) {
+            logLinha += " 🐍 (Cobra!)";
+        }
+
+        if (txtHistorico != null) {
+            txtHistorico.appendText(logLinha + "\n\n");
+        }
 
         if (motorJogo.isJogoTerminado()) return;
 
@@ -411,6 +450,12 @@ public class Main extends Application {
         String oponente = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
         lblEstadoDetalhado.setText("Tu (Azul): Casa 1  |  " + oponente + ": Casa 1");
         lblDadoResultado.setText("[ Jogo Reiniciado ]");
+
+        // NOVO: Limpar o histórico ao reiniciar
+        if (txtHistorico != null) {
+            txtHistorico.setText("=== JOGO REINICIADO ===\nBoa sorte!\n\n");
+        }
+
         btnLancarDado.setDisable(false);
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
 
