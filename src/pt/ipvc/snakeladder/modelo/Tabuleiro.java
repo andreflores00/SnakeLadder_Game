@@ -1,3 +1,12 @@
+/**
+ * Representa o tabuleiro do jogo.
+ * Gere a coleção de obstáculos (cobras e escadas) e fornece métodos para
+ * verificar se uma determinada casa tem uma ação especial associada,
+ * aplicando assim a lógica do percurso.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.modelo;
 
 import java.util.ArrayList;
@@ -10,6 +19,10 @@ public class Tabuleiro {
     private Quadricula[] casas;
     private List<Obstaculo> obstaculos;
 
+    /**
+     * Construtor da classe Tabuleiro.
+     * Inicializa a matriz de casas e a lista de obstáculos, procedendo à sua geração automática.
+     */
     public Tabuleiro() {
         this.casas = new Quadricula[100];
         this.obstaculos = new ArrayList<>();
@@ -17,19 +30,27 @@ public class Tabuleiro {
         gerarObstaculosPerfeitos();
     }
 
+    /**
+     * Preenche o tabuleiro com as 100 quadrículas sequenciais.
+     */
     private void gerarQuadriculas() {
         for (int i = 0; i < 100; i++) {
             casas[i] = new Quadricula(i + 1, 0, 0);
         }
     }
 
+    /**
+     * Gera e posiciona aleatoriamente as cobras e escadas no tabuleiro.
+     * Assegura que são criadas exatamente 4 escadas e 4 cobras, respeitando regras
+     * matemáticas para evitar que os obstáculos se cruzem visualmente ou se sobreponham.
+     */
     private void gerarObstaculosPerfeitos() {
         Random random = new Random();
         Set<Integer> casasOcupadas = new HashSet<>();
         casasOcupadas.add(1);
         casasOcupadas.add(100);
 
-        int tentativasMax = 2000; // Mais tentativas para ter a certeza que encontra lugar
+        int tentativasMax = 2000;
 
         // Gerar 4 Escadas
         int escadasGeradas = 0;
@@ -37,7 +58,7 @@ public class Tabuleiro {
         while (escadasGeradas < 4 && tentativas < tentativasMax) {
             tentativas++;
             int inicio = 2 + random.nextInt(75);
-            int fim = inicio + 12 + random.nextInt(35); // Podem ser um pouco mais compridas
+            int fim = inicio + 12 + random.nextInt(35);
             if (fim > 99) fim = 99;
 
             if (tentarAdicionarObstaculo(inicio, fim, casasOcupadas, true)) {
@@ -51,7 +72,7 @@ public class Tabuleiro {
         while (cobrasGeradas < 4 && tentativas < tentativasMax) {
             tentativas++;
             int inicio = 25 + random.nextInt(74);
-            int fim = inicio - 12 - random.nextInt(35); // Podem ser um pouco mais compridas
+            int fim = inicio - 12 - random.nextInt(35);
             if (fim < 2) fim = 2;
 
             if (tentarAdicionarObstaculo(inicio, fim, casasOcupadas, false)) {
@@ -60,30 +81,30 @@ public class Tabuleiro {
         }
     }
 
+    /**
+     * Tenta inserir um novo obstáculo no tabuleiro, validando todas as regras de colisão e estética.
+     *
+     * @param inicio A casa de partida do obstáculo.
+     * @param fim A casa de destino do obstáculo.
+     * @param casasOcupadas Conjunto de casas que já contêm um obstáculo.
+     * @param isEscada Verdadeiro se o obstáculo for uma Escada, falso se for uma Cobra.
+     * @return true se o obstáculo foi posicionado com sucesso, false caso contrário.
+     */
     private boolean tentarAdicionarObstaculo(int inicio, int fim, Set<Integer> casasOcupadas, boolean isEscada) {
-        // Se a casa já tem algo, rejeita
         if (casasOcupadas.contains(inicio) || casasOcupadas.contains(fim)) return false;
 
         int[] A = getCoordenadas(inicio);
         int[] B = getCoordenadas(fim);
 
-        // REGRA 1: Não permitir obstáculos demasiado deitados/horizontais
         if (Math.abs(A[0] - B[0]) > 6) return false;
-
-        // REGRA 2: Não permitir obstáculos curtos demais (têm de subir/descer pelo menos 2 andares)
         if (Math.abs(A[1] - B[1]) < 2) return false;
 
         for (Obstaculo obs : obstaculos) {
             int[] C = getCoordenadas(obs.getInicio());
             int[] D = getCoordenadas(obs.getFim());
 
-            // REGRA 3: O mais importante! Impede que se cruzem em "X" no ecrã
             if (seCruzam(A, B, C, D)) return false;
-
-            // REGRA 4: Restrição suavizada - Só impede de começarem ou acabarem exatamente na mesma linha (andar)
             if (A[1] == C[1] || B[1] == D[1]) return false;
-
-            // REGRA 5: Distância mínima para não asfixiar o tabuleiro
             if (Math.abs(inicio - obs.getInicio()) <= 2 || Math.abs(fim - obs.getFim()) <= 2) return false;
         }
 
@@ -97,8 +118,6 @@ public class Tabuleiro {
 
         return true;
     }
-
-    // --- ALGORITMOS MATEMÁTICOS ---
 
     private int[] getCoordenadas(int numero) {
         int zeroIndex = numero - 1;
@@ -120,6 +139,12 @@ public class Tabuleiro {
         obstaculos.add(obs);
     }
 
+    /**
+     * Verifica se existe algum obstáculo configurado para a posição especificada.
+     *
+     * @param posicaoAtual O número da casa onde o jogador se encontra.
+     * @return O objeto {@link Obstaculo} presente na casa, ou null se for uma casa normal.
+     */
     public Obstaculo verificarObstaculo(int posicaoAtual) {
         for (Obstaculo obs : obstaculos) {
             if (obs.getInicio() == posicaoAtual) {

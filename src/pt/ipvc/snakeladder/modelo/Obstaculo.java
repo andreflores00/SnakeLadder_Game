@@ -1,3 +1,11 @@
+/**
+ * Classe abstrata que serve de base para todos os elementos especiais do tabuleiro.
+ * Define a estrutura comum para obstáculos que alteram a posição do jogador,
+ * garantindo a aplicação correta do conceito de polimorfismo.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 package pt.ipvc.snakeladder.modelo;
 
 public abstract class Obstaculo {
