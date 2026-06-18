@@ -16,9 +16,13 @@ public class Cobra extends Obstaculo {
         }
     }
 
+    /**
+     * Aplica o efeito negativo da cobra ao jogador, forçando-o a recuar no tabuleiro até à casa de destino.
+     *
+     * @param j O {@link Jogador} que aterrou na casa onde se encontra a cabeça da cobra.
+     */
     @Override
     public void aplicar(Jogador j) {
-        // A matemática para mover o jogador da cabeça para a cauda
         int diferenca = getFim() - j.getPosicao();
         j.mover(diferenca);
         System.out.println("Oh não! Apanhou uma cobra. Desceu para a casa " + getFim());
