@@ -16,6 +16,10 @@ import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.animation.PauseTransition;
+import javafx.animation.FadeTransition;
+import javafx.animation.ParallelTransition;
+import javafx.animation.SequentialTransition;
+import javafx.animation.Interpolator;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -62,6 +66,7 @@ public class Main extends Application {
     private TextArea txtHistorico;
 
     private Label lblVitoriaGigante = null;
+    private SequentialTransition animacaoVitoriaAtiva = null; // Para guardar a animação de vitória e poder pará-la
 
     private boolean modoBot = false;
     private boolean modoRede = false;
@@ -164,7 +169,6 @@ public class Main extends Application {
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
         btnLancarDado.setEffect(new DropShadow(8, 0, 3, Color.color(0.23, 0.51, 0.96, 0.4)));
 
-        // NOVO: Componentes do Histórico de Jogadas
         Label lblHistorico = new Label("HISTÓRICO");
         lblHistorico.setFont(Font.font("System", FontWeight.BLACK, 12));
         lblHistorico.setTextFill(Color.web("#94a3b8"));
@@ -174,13 +178,18 @@ public class Main extends Application {
         txtHistorico.setWrapText(true);
         txtHistorico.setFocusTraversable(false);
         txtHistorico.setStyle("-fx-font-size: 12px; -fx-control-inner-background: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 6px;");
-        VBox.setVgrow(txtHistorico, Priority.ALWAYS); // Ocupa automaticamente o espaço restante do painel
+        VBox.setVgrow(txtHistorico, Priority.ALWAYS);
 
-        // NOVO: Botão Reiniciar Estilizado
         Button btnReiniciar = new Button("🔄 Reiniciar Jogo");
         btnReiniciar.setMaxWidth(Double.MAX_VALUE);
         btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 8px 12px;");
-        btnReiniciar.setOnAction(e -> reiniciarJogo(modoBot, gc, canvas));
+
+        // NOVO: Adicionar confirmação ao botão de Reiniciar
+        btnReiniciar.setOnAction(e -> confirmarEExecutar(
+                "Reiniciar Jogo",
+                "Queres mesmo reiniciar a partida atual?",
+                () -> reiniciarJogo(modoBot, gc, canvas)
+        ));
 
         painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, lblHistorico, txtHistorico, btnReiniciar);
         root.setRight(painelLateral);
@@ -240,8 +249,18 @@ public class Main extends Application {
             }
         });
 
-        itemLocal.setOnAction(e -> reiniciarJogo(false, gc, canvas));
-        itemBot.setOnAction(e -> reiniciarJogo(true, gc, canvas));
+        // NOVO: Adicionar confirmação aos itens do menu Novo Jogo
+        itemLocal.setOnAction(e -> confirmarEExecutar(
+                "Novo Jogo Local",
+                "Iniciar nova partida para 2 Jogadores?",
+                () -> reiniciarJogo(false, gc, canvas)
+        ));
+
+        itemBot.setOnAction(e -> confirmarEExecutar(
+                "Novo Jogo contra Bot",
+                "Iniciar nova partida contra a Inteligência Artificial?",
+                () -> reiniciarJogo(true, gc, canvas)
+        ));
 
         itemHost.setOnAction(e -> {
             servidor = new ServidorJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
@@ -282,7 +301,6 @@ public class Main extends Application {
                     verificarCondicaoVitoria((modoRede && !souHost) ? 2 : 1, novaPos);
                 };
 
-                // Se o peão já está a saltar os dados, "põe na fila" o escorrega da cobra/escada!
                 if (animacaoJ1 != null && animacaoJ1.getStatus() == Animation.Status.RUNNING) {
                     animacaoJ1.setOnFinished(e -> {
                         animacaoJ1 = t;
@@ -336,6 +354,29 @@ public class Main extends Application {
         primaryStage.show();
     }
 
+    // NOVO: Método auxiliar para mostrar a caixa de confirmação
+    private void confirmarEExecutar(String titulo, String cabecalho, Runnable acaoConfirmada) {
+        // Se o jogo já terminou ou ainda não começou de facto (ambos na casa 1), não vale a pena pedir confirmação
+        if (motorJogo.isJogoTerminado() || (jogador1.getPosicao() == 1 && jogador2.getPosicao() == 1)) {
+            acaoConfirmada.run();
+            return;
+        }
+
+        Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
+        alerta.setTitle(titulo);
+        alerta.setHeaderText(cabecalho);
+        alerta.setContentText("O progresso atual será perdido. Tens a certeza que queres continuar?");
+
+        ButtonType btnSim = new ButtonType("Sim, reiniciar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnNao = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alerta.getButtonTypes().setAll(btnSim, btnNao);
+
+        Optional<ButtonType> resultado = alerta.showAndWait();
+        if (resultado.isPresent() && resultado.get() == btnSim) {
+            acaoConfirmada.run();
+        }
+    }
+
     private void animarDadoEExecutar(Runnable acaoFinal) {
         ScaleTransition st = new ScaleTransition(Duration.millis(250), lblDadoIcon);
         st.setByX(0.5); st.setByY(0.5);
@@ -366,22 +407,19 @@ public class Main extends Application {
 
         lblDadoIcon.setText(FACES_DADO[valorDado]);
 
-        // Capturar o estado para registar no histórico
         int posAntiga = motorJogo.getJogadores().get(indexAtual).getPosicao();
         motorJogo.jogarTurno(valorDado);
         int posNova = motorJogo.getJogadores().get(indexAtual).getPosicao();
 
         lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
 
-        // NOVO: Adicionar jogada ao Histórico
         String nomeJogador = euJoguei ? "Tu (Azul)" : (modoBot && indexAtual == 1 ? "Bot (Laranja)" : "Adversário (Laranja)");
         String logLinha = nomeJogador + " tirou " + valorDado + ".\n➔ Casa " + posAntiga + " para " + posNova;
 
-        // Detetar obstáculos matematicamente para o histórico
         if (posNova > posAntiga + valorDado && posNova != 100) {
-            logLinha += " 🪜 (Escada!)";
+            logLinha += " \uD83E\uDE9C (Escada!)";
         } else if (posNova < posAntiga) {
-            logLinha += " 🐍 (Cobra!)";
+            logLinha += " \uD83D\uDC0D (Cobra!)";
         }
 
         if (txtHistorico != null) {
@@ -437,6 +475,10 @@ public class Main extends Application {
         motorJogo.iniciar();
 
         if (lblVitoriaGigante != null) {
+            // Se houver uma animação a correr, pára-a para não haver bugs visuais
+            if (animacaoVitoriaAtiva != null) {
+                animacaoVitoriaAtiva.stop();
+            }
             areaJogo.getChildren().remove(lblVitoriaGigante);
             lblVitoriaGigante = null;
         }
@@ -451,7 +493,6 @@ public class Main extends Application {
         lblEstadoDetalhado.setText("Tu (Azul): Casa 1  |  " + oponente + ": Casa 1");
         lblDadoResultado.setText("[ Jogo Reiniciado ]");
 
-        // NOVO: Limpar o histórico ao reiniciar
         if (txtHistorico != null) {
             txtHistorico.setText("=== JOGO REINICIADO ===\nBoa sorte!\n\n");
         }
@@ -480,6 +521,7 @@ public class Main extends Application {
         lblEstadoDetalhado.setText("Tu (Azul): Casa " + posJ1 + "  |  " + oponente + ": Casa " + posJ2);
     }
 
+    // NOVO: Animação de vitória super melhorada
     private void verificarCondicaoVitoria(int idJogador, int localizacao) {
         if (motorJogo.isJogoTerminado() || localizacao >= 100) {
             String mensagemFinal;
@@ -513,16 +555,46 @@ public class Main extends Application {
                 areaJogo.getChildren().add(lblVitoriaGigante);
             }
 
-            lblVitoriaGigante.setScaleX(0.0);
-            lblVitoriaGigante.setScaleY(0.0);
-            ScaleTransition st = new ScaleTransition(Duration.millis(800), lblVitoriaGigante);
-            st.setToX(1.3); st.setToY(1.3);
-            st.setCycleCount(2); st.setAutoReverse(true);
-            st.setOnFinished(e -> {
-                ScaleTransition st2 = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
-                st2.setToX(1.0); st2.setToY(1.0); st2.play();
-            });
-            st.play();
+            // Preparação do estado inicial
+            lblVitoriaGigante.setScaleX(0.5);
+            lblVitoriaGigante.setScaleY(0.5);
+            lblVitoriaGigante.setOpacity(0.0);
+
+            // 1. Fade in rápido
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(400), lblVitoriaGigante);
+            fadeIn.setToValue(1.0);
+
+            // 2. Cresce até ficar ligeiramente maior (overshoot)
+            ScaleTransition scaleUp = new ScaleTransition(Duration.millis(400), lblVitoriaGigante);
+            scaleUp.setToX(1.4); scaleUp.setToY(1.4);
+            scaleUp.setInterpolator(Interpolator.EASE_OUT);
+
+            // 3. Volta ao tamanho normal
+            ScaleTransition scaleDown = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
+            scaleDown.setToX(1.0); scaleDown.setToY(1.0);
+            scaleDown.setInterpolator(Interpolator.EASE_IN);
+
+            // 4. Dá uma tremidela de festa
+            RotateTransition wobble = new RotateTransition(Duration.millis(100), lblVitoriaGigante);
+            wobble.setByAngle(10);
+            wobble.setCycleCount(6);
+            wobble.setAutoReverse(true);
+
+            // 5. Fica a pulsar indefinidamente no fim
+            ScaleTransition pulsar = new ScaleTransition(Duration.millis(1000), lblVitoriaGigante);
+            pulsar.setToX(1.08); pulsar.setToY(1.08);
+            pulsar.setCycleCount(Animation.INDEFINITE);
+            pulsar.setAutoReverse(true);
+
+            // Executar tudo em sequência
+            animacaoVitoriaAtiva = new SequentialTransition(
+                    new ParallelTransition(fadeIn, scaleUp),
+                    scaleDown,
+                    wobble,
+                    pulsar
+            );
+
+            animacaoVitoriaAtiva.play();
         }
     }
 
