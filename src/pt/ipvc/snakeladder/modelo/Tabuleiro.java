@@ -154,6 +154,19 @@ public class Tabuleiro {
         return null;
     }
 
-    public Quadricula[] getCasas() { return casas; }
-    public List<Obstaculo> getObstaculos() { return obstaculos; }
+    /**
+     * Devolve o array com todas as quadrículas (casas) que compõem o tabuleiro.
+     * * @return Um array contendo os objetos {@link Quadricula} do jogo.
+     */
+    public Quadricula[] getCasas() {
+        return casas;
+    }
+
+    /**
+     * Devolve a lista de todos os obstáculos (cobras e escadas) gerados no tabuleiro.
+     * * @return Uma lista com os objetos {@link Obstaculo} posicionados.
+     */
+    public List<Obstaculo> getObstaculos() {
+        return obstaculos;
+    }
 }

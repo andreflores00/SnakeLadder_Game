@@ -1,12 +1,3 @@
-/**
- * Classe principal da aplicação Snake and Ladder.
- * Estende a classe Application do JavaFX e é responsável por construir
- * toda a interface gráfica, gerir as animações dinâmicas e lidar com a
- * comunicação de rede (Sockets) para o modo multiplayer.
- *
- * @author André e Eduardo
- * @version 1.0
- */
 package pt.ipvc.snakeladder;
 
 import javafx.animation.Animation;
@@ -51,6 +42,15 @@ import pt.ipvc.snakeladder.rede.ServidorJogo;
 
 import java.util.Optional;
 
+/**
+ * Classe principal da aplicação Snake and Ladder.
+ * Estende a classe Application do JavaFX e é responsável por construir
+ * toda a interface gráfica, gerir as animações dinâmicas e lidar com a
+ * comunicação de rede (Sockets) para o modo multiplayer.
+ *
+ * @author André e Eduardo
+ * @version 1.0
+ */
 public class Main extends Application {
 
     private Jogo motorJogo;
@@ -183,28 +183,14 @@ public class Main extends Application {
         btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
         btnLancarDado.setEffect(new DropShadow(8, 0, 3, Color.color(0.23, 0.51, 0.96, 0.4)));
 
-        Label lblHistorico = new Label("HISTÓRICO");
-        lblHistorico.setFont(Font.font("System", FontWeight.BLACK, 12));
-        lblHistorico.setTextFill(Color.web("#94a3b8"));
+        Region espacador = new Region();
+        VBox.setVgrow(espacador, Priority.ALWAYS);
 
-        txtHistorico = new TextArea();
-        txtHistorico.setEditable(false);
-        txtHistorico.setWrapText(true);
-        txtHistorico.setFocusTraversable(false);
-        txtHistorico.setStyle("-fx-font-size: 12px; -fx-control-inner-background: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 6px;");
-        VBox.setVgrow(txtHistorico, Priority.ALWAYS);
+        Button btnDesistir = new Button("🏳️ Reiniciar Rápido");
+        btnDesistir.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
+        btnDesistir.setOnAction(e -> reiniciarJogo(modoBot, gc, canvas));
 
-        Button btnReiniciar = new Button("🔄 Reiniciar Jogo");
-        btnReiniciar.setMaxWidth(Double.MAX_VALUE);
-        btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 8px 12px;");
-
-        btnReiniciar.setOnAction(e -> confirmarEExecutar(
-                "Reiniciar Jogo",
-                "Queres mesmo reiniciar a partida atual?",
-                () -> reiniciarJogo(modoBot, gc, canvas)
-        ));
-
-        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, lblHistorico, txtHistorico, btnReiniciar);
+        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnDesistir);
         root.setRight(painelLateral);
 
         // --- BOTTOM: Menu de Estado ---
