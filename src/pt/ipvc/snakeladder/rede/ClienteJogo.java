@@ -16,15 +16,30 @@ public class ClienteJogo {
     private DataOutputStream out;
     private DataInputStream in;
 
+    /**
+     * Interface funcional responsável por escutar e tratar as mensagens (jogadas) recebidas da rede.
+     */
     public interface MensagemListener {
+        /**
+         * Invocado sempre que o adversário remoto envia uma nova jogada.
+         *
+         * @param valorDado O valor do dado tirado pelo adversário remoto no seu turno.
+         */
         void aoReceberJogada(int valorDado);
     }
+
     private MensagemListener listener;
 
     public ClienteJogo(MensagemListener listener) {
         this.listener = listener;
     }
 
+    /**
+     * Estabelece a ligação a um servidor remoto utilizando Sockets num processo em segundo plano (Thread).
+     *
+     * @param ip O endereço IP da máquina host.
+     * @param porta A porta TCP onde o servidor remoto se encontra à escuta.
+     */
     public void conectar(String ip, int porta) {
         new Thread(() -> {
             try {
@@ -52,6 +67,11 @@ public class ClienteJogo {
         }
     }
 
+    /**
+     * Envia o resultado da jogada local para o adversário através do Socket estabelecido.
+     *
+     * @param valorDado O valor do dado que o jogador deste cliente acabou de rolar.
+     */
     public void enviarJogada(int valorDado) {
         try {
             if (out != null) {

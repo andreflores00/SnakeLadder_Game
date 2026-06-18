@@ -16,9 +16,13 @@ public class Escada extends Obstaculo {
         }
     }
 
+    /**
+     * Aplica o efeito positivo da escada ao jogador, fazendo-o avançar no tabuleiro até ao topo da escada.
+     *
+     * @param j O {@link Jogador} que aterrou na casa onde se encontra a base da escada.
+     */
     @Override
     public void aplicar(Jogador j) {
-        // A matemática para mover o jogador da base para o topo
         int diferenca = getFim() - j.getPosicao();
         j.mover(diferenca);
         System.out.println("Boa! Subiu uma escada para a casa " + getFim());
