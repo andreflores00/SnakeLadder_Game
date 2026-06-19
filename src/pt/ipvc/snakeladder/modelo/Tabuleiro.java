@@ -45,7 +45,7 @@ public class Tabuleiro {
      * matemáticas para evitar que os obstáculos se cruzem visualmente ou se sobreponham.
      */
     private void gerarObstaculosPerfeitos() {
-        Random random = new Random();
+        Random random = new Random(12345);
         Set<Integer> casasOcupadas = new HashSet<>();
         casasOcupadas.add(1);
         casasOcupadas.add(100);
