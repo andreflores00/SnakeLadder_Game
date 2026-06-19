@@ -1,3 +1,8 @@
+package pt.ipvc.snakeladder.rede;
+
+import java.io.*;
+import java.net.*;
+
 /**
  * Gere a criação de uma sala de jogo e atua como Host (Servidor).
  * Utiliza Sockets TCP e Threads secundárias para ouvir e transmitir
@@ -6,11 +11,6 @@
  * @author André e Eduardo
  * @version 1.0
  */
-package pt.ipvc.snakeladder.rede;
-
-import java.io.*;
-import java.net.*;
-
 public class ServidorJogo {
     private ServerSocket serverSocket;
     private Socket clientSocket;
@@ -31,12 +31,18 @@ public class ServidorJogo {
 
     private MensagemListener listener;
 
+    /**
+     * Construtor do ServidorJogo.
+     *
+     * @param listener A classe ou função que irá escutar as jogadas recebidas.
+     */
     public ServidorJogo(MensagemListener listener) {
         this.listener = listener;
     }
 
     /**
      * Inicia o servidor na porta especificada e aguarda a ligação de um cliente.
+     * Processado numa nova Thread para não bloquear o jogo.
      *
      * @param porta A porta TCP onde o servidor ficará à escuta.
      */
@@ -59,6 +65,9 @@ public class ServidorJogo {
         }).start();
     }
 
+    /**
+     * Escuta continuamente as mensagens provenientes do cliente conectado.
+     */
     private void ouvirCliente() {
         try {
             while (true) {
@@ -71,7 +80,7 @@ public class ServidorJogo {
     }
 
     /**
-     * Envia o resultado da jogada local do host para o cliente.
+     * Envia o resultado da jogada local do host para o cliente através do Socket.
      *
      * @param valorDado O valor do dado que o anfitrião do jogo (host) acabou de rolar.
      */

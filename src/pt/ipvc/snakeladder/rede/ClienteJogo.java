@@ -1,3 +1,8 @@
+package pt.ipvc.snakeladder.rede;
+
+import java.io.*;
+import java.net.*;
+
 /**
  * Estabelece a ligação a um jogo remoto através do IP do Host.
  * Atua como Cliente, utilizando Sockets TCP e Threads para receber
@@ -6,11 +11,6 @@
  * @author André e Eduardo
  * @version 1.0
  */
-package pt.ipvc.snakeladder.rede;
-
-import java.io.*;
-import java.net.*;
-
 public class ClienteJogo {
     private Socket socket;
     private DataOutputStream out;
@@ -21,7 +21,7 @@ public class ClienteJogo {
      */
     public interface MensagemListener {
         /**
-         * Invocado sempre que o adversário remoto envia uma nova jogada.
+         * Invocado sempre que o adversário remoto (host) envia uma nova jogada.
          *
          * @param valorDado O valor do dado tirado pelo adversário remoto no seu turno.
          */
@@ -30,6 +30,11 @@ public class ClienteJogo {
 
     private MensagemListener listener;
 
+    /**
+     * Construtor do ClienteJogo.
+     *
+     * @param listener A classe ou função que irá escutar as jogadas recebidas do Servidor.
+     */
     public ClienteJogo(MensagemListener listener) {
         this.listener = listener;
     }
@@ -56,6 +61,9 @@ public class ClienteJogo {
         }).start();
     }
 
+    /**
+     * Escuta continuamente as mensagens enviadas pelo servidor (Host).
+     */
     private void ouvirServidor() {
         try {
             while (true) {
@@ -68,7 +76,7 @@ public class ClienteJogo {
     }
 
     /**
-     * Envia o resultado da jogada local para o adversário através do Socket estabelecido.
+     * Envia o resultado da jogada local deste cliente para o adversário através do Socket estabelecido.
      *
      * @param valorDado O valor do dado que o jogador deste cliente acabou de rolar.
      */
