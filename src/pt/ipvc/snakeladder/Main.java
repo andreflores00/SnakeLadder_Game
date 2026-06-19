@@ -186,11 +186,11 @@ public class Main extends Application {
         Region espacador = new Region();
         VBox.setVgrow(espacador, Priority.ALWAYS);
 
-        Button btnDesistir = new Button("🏳️ Reiniciar Rápido");
-        btnDesistir.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
-        btnDesistir.setOnAction(e -> reiniciarJogo(modoBot, gc, canvas));
+        // CORRIGIDO: O botão foi renomeado para "btnReiniciarRapido"
+        Button btnReiniciarRapido = new Button("🏳️ Reiniciar Rápido");
+        btnReiniciarRapido.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
 
-        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnDesistir);
+        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnReiniciarRapido);
         root.setRight(painelLateral);
 
         // --- BOTTOM: Menu de Estado ---
@@ -231,61 +231,85 @@ public class Main extends Application {
         barraInferior.getChildren().addAll(statusEsquerda, spacer, statusDireita);
         root.setBottom(barraInferior);
 
-        // --- ACÇÕES DOS BOTÕES ---
+        // --- ACÇÕES DOS BOTÕES E REDE ---
         btnLancarDado.setOnAction(e -> {
             if (!motorJogo.isJogoTerminado()) {
                 btnLancarDado.setDisable(true);
-                tocarSom(somDado, 0.6); // Toca som do dado ao clicar
-                animarDadoEExecutar(() -> {
+
+                RotateTransition rt = new RotateTransition(Duration.millis(400), lblDadoIcon);
+                rt.setByAngle(360);
+                rt.setCycleCount(1);
+
+                rt.setOnFinished(anim -> {
                     int valorSorteado = motorJogo.getDado().rolar();
-                    lblDadoIcon.setText(FACES_DADO[valorSorteado]);
 
                     if (modoRede) {
                         if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
                         else if (!souHost && cliente != null) cliente.enviarJogada(valorSorteado);
                     }
+
                     processarJogadaSincronizada(valorSorteado);
                 });
+
+                rt.play();
             }
         });
 
-        itemLocal.setOnAction(e -> confirmarEExecutar(
-                "Novo Jogo Local",
-                "Iniciar nova partida para 2 Jogadores?",
-                () -> {
-                    pedirNomes(false);
-                    reiniciarJogo(false, gc, canvas);
-                }
-        ));
+        itemLocal.setOnAction(e -> reiniciarJogo(false, gc, canvas));
+        itemBot.setOnAction(e -> reiniciarJogo(true, gc, canvas));
 
-        itemBot.setOnAction(e -> confirmarEExecutar(
-                "Novo Jogo contra Bot",
-                "Iniciar nova partida contra a Inteligência Artificial?",
-                () -> {
-                    pedirNomes(true);
-                    reiniciarJogo(true, gc, canvas);
-                }
-        ));
-
+        // --- CÓDIGO DO HOST (CRIAR SALA) ---
         itemHost.setOnAction(e -> {
-            pedirNomes(true); // Só pede o nome local
-            servidor = new ServidorJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
+            servidor = new ServidorJogo(valor -> Platform.runLater(() -> {
+                // Se receber o código secreto -1, reinicia o jogo
+                if (valor == -1) {
+                    reiniciarJogo(false, gc, canvas);
+                    lblTituloPainel.setText("O TEU TURNO");
+                    lblTurnoStatus.setText("O ADVERSÁRIO REINICIOU A PARTIDA!");
+                    lblTurnoStatus.setTextFill(Color.web("#10b981"));
+                    btnLancarDado.setDisable(false);
+                } else {
+                    processarJogadaSincronizada(valor);
+                }
+            }));
+
             servidor.iniciarServidor(5000);
-            modoRede = true; souHost = true;
+            modoRede = true;
+            souHost = true;
             reiniciarJogo(false, gc, canvas);
+
             lblTurnoStatus.setText("SALA CRIADA! JOGAS PRIMEIRO.");
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.setTitle("Modo Servidor");
+            info.setHeaderText("Sala aberta com sucesso!");
+            info.setContentText("Podes passar o teu IP local ao teu colega para ele entrar no jogo.");
+            info.show();
         });
 
+        // --- CÓDIGO DO CLIENTE (ENTRAR NA SALA) ---
         itemClient.setOnAction(e -> {
-            pedirNomes(true); // Só pede o nome local
             TextInputDialog dialog = new TextInputDialog("127.0.0.1");
             dialog.setTitle("Ligar a Sala");
             dialog.setHeaderText("Ligar ao Computador do Host");
             dialog.setContentText("Insere o IP do Servidor:");
+
             dialog.showAndWait().ifPresent(ip -> {
-                cliente = new ClienteJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
+                cliente = new ClienteJogo(valor -> Platform.runLater(() -> {
+                    // Se receber o código secreto -1, reinicia o jogo
+                    if (valor == -1) {
+                        reiniciarJogo(false, gc, canvas);
+                        lblTituloPainel.setText("ADVERSÁRIO");
+                        lblTurnoStatus.setText("A PARTIDA FOI REINICIADA! A AGUARDAR...");
+                        lblTurnoStatus.setTextFill(Color.CRIMSON);
+                        btnLancarDado.setDisable(true);
+                    } else {
+                        processarJogadaSincronizada(valor);
+                    }
+                }));
+
                 cliente.conectar(ip, 5000);
-                modoRede = true; souHost = false;
+                modoRede = true;
+                souHost = false;
                 reiniciarJogo(false, gc, canvas);
 
                 btnLancarDado.setDisable(true);
@@ -293,7 +317,30 @@ public class Main extends Application {
                 lblTituloPainel.setTextFill(jogador1.getCor());
                 lblTurnoStatus.setText("A AGUARDAR JOGADA DO HOST...");
                 lblTurnoStatus.setTextFill(jogador1.getCor());
+                lblEstadoDetalhado.setText("Adversário (Azul): Casa 1 | Tu (Laranja): Casa 1");
+
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+                info.setTitle("Modo Cliente");
+                info.setHeaderText("Ligado à sala com sucesso!");
+                info.setContentText("Estás conectado ao IP: " + ip + "\n\nO anfitrião (Host) tem de fazer a primeira jogada. Fica atento!");
+                info.show();
             });
+        });
+
+        // --- BOTÃO REINICIAR RÁPIDO ---
+        btnReiniciarRapido.setOnAction(e -> {
+            reiniciarJogo(false, gc, canvas);
+
+            if (modoRede) {
+                if (souHost && servidor != null) {
+                    servidor.enviarJogada(-1); // Envia o código secreto de reinício
+                    btnLancarDado.setDisable(false);
+                } else if (!souHost && cliente != null) {
+                    cliente.enviarJogada(-1); // Envia o código secreto de reinício
+                    btnLancarDado.setDisable(true);
+                    lblTurnoStatus.setText("REINICIASTE O JOGO. A AGUARDAR HOST...");
+                }
+            }
         });
 
         // --- LISTENERS REATIVOS ---
@@ -370,7 +417,6 @@ public class Main extends Application {
     // --- MÉTODOS DE ÁUDIO ---
     private void carregarSons() {
         try {
-            // Repara que agora adicionámos o "/resources/" antes do nome do ficheiro
             URL urlDado = getClass().getResource("/resources/dado.wav");
             if (urlDado != null) somDado = new AudioClip(urlDado.toExternalForm());
 
