@@ -1,3 +1,7 @@
+package pt.ipvc.snakeladder.modelo;
+
+import java.util.Random;
+
 /**
  * Responsável pela geração de valores aleatórios no jogo.
  * Simula o lançamento de um dado tradicional de seis faces,
@@ -6,17 +10,15 @@
  * @author André e Eduardo
  * @version 1.0
  */
-package pt.ipvc.snakeladder.modelo;
-
-import java.util.Random;
-
 public class Dado {
+
     private int valor;
 
     /**
      * Simula o lançamento de um dado convencional de 6 faces.
+     * Gera um número aleatório, guarda-o na memória e devolve-o.
      *
-     * @return O valor resultante do lançamento (entre 1 e 6).
+     * @return O valor resultante do lançamento (um número inteiro entre 1 e 6).
      */
     public int rolar() {
         Random random = new Random();

@@ -1,3 +1,11 @@
+package pt.ipvc.snakeladder.modelo;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
 /**
  * Representa o tabuleiro do jogo.
  * Gere a coleção de obstáculos (cobras e escadas) e fornece métodos para
@@ -7,14 +15,6 @@
  * @author André e Eduardo
  * @version 1.0
  */
-package pt.ipvc.snakeladder.modelo;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-
 public class Tabuleiro {
     private Quadricula[] casas;
     private List<Obstaculo> obstaculos;
@@ -41,8 +41,8 @@ public class Tabuleiro {
 
     /**
      * Gera e posiciona aleatoriamente as cobras e escadas no tabuleiro.
-     * Assegura que são criadas exatamente 4 escadas e 4 cobras, respeitando regras
-     * matemáticas para evitar que os obstáculos se cruzem visualmente ou se sobreponham.
+     * Assegura que são criadas exatamente 4 escadas e 4 cobras, usando uma semente (seed) fixa
+     * para garantir que o mapa é igual em multiplayer.
      */
     private void gerarObstaculosPerfeitos() {
         Random random = new Random(12345);
@@ -52,7 +52,6 @@ public class Tabuleiro {
 
         int tentativasMax = 2000;
 
-        // Gerar 4 Escadas
         int escadasGeradas = 0;
         int tentativas = 0;
         while (escadasGeradas < 4 && tentativas < tentativasMax) {
@@ -66,7 +65,6 @@ public class Tabuleiro {
             }
         }
 
-        // Gerar 4 Cobras
         int cobrasGeradas = 0;
         tentativas = 0;
         while (cobrasGeradas < 4 && tentativas < tentativasMax) {
@@ -135,6 +133,11 @@ public class Tabuleiro {
         return ccw(A, C, D) != ccw(B, C, D) && ccw(A, B, C) != ccw(A, B, D);
     }
 
+    /**
+     * Adiciona um obstáculo manualmente à lista do tabuleiro.
+     *
+     * @param obs O objeto Obstaculo a ser adicionado.
+     */
     public void adicionarObstaculo(Obstaculo obs) {
         obstaculos.add(obs);
     }
@@ -143,7 +146,7 @@ public class Tabuleiro {
      * Verifica se existe algum obstáculo configurado para a posição especificada.
      *
      * @param posicaoAtual O número da casa onde o jogador se encontra.
-     * @return O objeto {@link Obstaculo} presente na casa, ou null se for uma casa normal.
+     * @return O objeto Obstaculo presente na casa, ou null se for uma casa normal.
      */
     public Obstaculo verificarObstaculo(int posicaoAtual) {
         for (Obstaculo obs : obstaculos) {
@@ -156,7 +159,8 @@ public class Tabuleiro {
 
     /**
      * Devolve o array com todas as quadrículas (casas) que compõem o tabuleiro.
-     * * @return Um array contendo os objetos {@link Quadricula} do jogo.
+     *
+     * @return Um array contendo os objetos Quadricula do jogo.
      */
     public Quadricula[] getCasas() {
         return casas;
@@ -164,7 +168,8 @@ public class Tabuleiro {
 
     /**
      * Devolve a lista de todos os obstáculos (cobras e escadas) gerados no tabuleiro.
-     * * @return Uma lista com os objetos {@link Obstaculo} posicionados.
+     *
+     * @return Uma lista com os objetos Obstaculo posicionados.
      */
     public List<Obstaculo> getObstaculos() {
         return obstaculos;
