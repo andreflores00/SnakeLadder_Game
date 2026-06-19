@@ -32,8 +32,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import javafx.scene.media.AudioClip;
 import java.net.URL;
+import javafx.scene.media.AudioClip;
 
 import pt.ipvc.snakeladder.modelo.Jogo;
 import pt.ipvc.snakeladder.modelo.Jogador;
