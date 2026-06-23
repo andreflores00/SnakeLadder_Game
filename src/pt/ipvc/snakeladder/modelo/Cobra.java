@@ -1,3 +1,5 @@
+package pt.ipvc.snakeladder.modelo;
+
 /**
  * Representa o obstáculo "Cobra" no tabuleiro.
  * Herda da classe base Obstaculo e aplica uma penalização ao jogador,
@@ -6,9 +8,15 @@
  * @author André e Eduardo
  * @version 1.0
  */
-package pt.ipvc.snakeladder.modelo;
-
 public class Cobra extends Obstaculo {
+
+    /**
+     * Construtor da classe Cobra.
+     *
+     * @param inicio A casa onde se encontra a cabeça da cobra (maior).
+     * @param fim A casa onde se encontra a cauda da cobra (menor).
+     * @throws IllegalArgumentException Se a casa de início for menor ou igual à de fim.
+     */
     public Cobra(int inicio, int fim) {
         super(inicio, fim);
         if (inicio <= fim) {
@@ -19,7 +27,7 @@ public class Cobra extends Obstaculo {
     /**
      * Aplica o efeito negativo da cobra ao jogador, forçando-o a recuar no tabuleiro até à casa de destino.
      *
-     * @param j O {@link Jogador} que aterrou na casa onde se encontra a cabeça da cobra.
+     * @param j O jogador que aterrou na casa onde se encontra a cabeça da cobra.
      */
     @Override
     public void aplicar(Jogador j) {

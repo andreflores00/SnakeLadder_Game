@@ -2,7 +2,6 @@ package pt.ipvc.snakeladder.rede;
 
 import java.io.*;
 import java.net.*;
-import java.net.InetSocketAddress;
 
 /**
  * Estabelece a ligação a um jogo remoto através do IP do Host.

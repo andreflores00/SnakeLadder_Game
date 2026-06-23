@@ -1,3 +1,5 @@
+package pt.ipvc.snakeladder.modelo;
+
 /**
  * Representa o obstáculo "Escada" no tabuleiro.
  * Herda da classe base Obstaculo e atua como um atalho estratégico,
@@ -6,9 +8,15 @@
  * @author André e Eduardo
  * @version 1.0
  */
-package pt.ipvc.snakeladder.modelo;
-
 public class Escada extends Obstaculo {
+
+    /**
+     * Construtor da classe Escada.
+     *
+     * @param inicio A casa onde se encontra a base da escada (menor).
+     * @param fim A casa onde se encontra o topo da escada (maior).
+     * @throws IllegalArgumentException Se a casa de início for maior ou igual à de fim.
+     */
     public Escada(int inicio, int fim) {
         super(inicio, fim);
         if (inicio >= fim) {
@@ -19,7 +27,7 @@ public class Escada extends Obstaculo {
     /**
      * Aplica o efeito positivo da escada ao jogador, fazendo-o avançar no tabuleiro até ao topo da escada.
      *
-     * @param j O {@link Jogador} que aterrou na casa onde se encontra a base da escada.
+     * @param j O jogador que aterrou na casa onde se encontra a base da escada.
      */
     @Override
     public void aplicar(Jogador j) {
