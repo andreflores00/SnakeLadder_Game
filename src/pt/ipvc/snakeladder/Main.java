@@ -41,7 +41,7 @@ import pt.ipvc.snakeladder.rede.ServidorJogo;
  * comunicação de rede (Sockets) para o modo multiplayer.
  *
  * @author André e Eduardo
- * @version 1.2
+ * @version 1.3
  */
 public class Main extends Application {
 
@@ -64,6 +64,8 @@ public class Main extends Application {
     private boolean modoBot = false;
     private boolean modoRede = false;
     private boolean souHost = false;
+    private boolean jogoInterrompido = false; // Flag para impedir ações após desistência
+
     private ServidorJogo servidor;
     private ClienteJogo cliente;
 
@@ -84,9 +86,6 @@ public class Main extends Application {
         mostrarMenuPrincipal();
     }
 
-    /**
-     * Carrega os recursos de áudio para a memória.
-     */
     private void carregarSons() {
         try {
             somDado = new AudioClip(getClass().getResource("/resources/dado.wav").toExternalForm());
@@ -98,9 +97,6 @@ public class Main extends Application {
         }
     }
 
-    /**
-     * Constrói e apresenta o ecrã inicial do jogo.
-     */
     private void mostrarMenuPrincipal() {
         VBox menuRoot = new VBox(25);
         menuRoot.setAlignment(Pos.CENTER);
@@ -166,6 +162,7 @@ public class Main extends Application {
         this.modoBot = isBot;
         this.modoRede = isRede;
         this.souHost = isHost;
+        this.jogoInterrompido = false;
 
         motorJogo = new Jogo();
         jogador1 = new Jogador(Color.DODGERBLUE);
@@ -222,7 +219,6 @@ public class Main extends Application {
         Button btnVoltarMenu = new Button("⬅ Voltar ao Menu");
         btnVoltarMenu.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-text-fill: #334155;");
 
-        // NOVO: Alerta de Confirmação para Voltar ao Menu
         btnVoltarMenu.setOnAction(e -> {
             Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
             alerta.setTitle("Abandonar Jogo");
@@ -231,6 +227,11 @@ public class Main extends Application {
 
             alerta.showAndWait().ifPresent(resposta -> {
                 if (resposta == ButtonType.OK) {
+                    // Se o jogador sair a meio de um jogo online, manda o sinal de desistência para o outro PC!
+                    if (modoRede && !jogoInterrompido && !motorJogo.isJogoTerminado()) {
+                        if (souHost && servidor != null) servidor.enviarJogada(-1);
+                        else if (!souHost && cliente != null) cliente.enviarJogada(-1);
+                    }
                     this.servidor = null;
                     this.cliente = null;
                     mostrarMenuPrincipal();
@@ -296,15 +297,29 @@ public class Main extends Application {
         Region espacador = new Region();
         VBox.setVgrow(espacador, Priority.ALWAYS);
 
-        Button btnReiniciar = new Button("🏳️ Reiniciar Rápido");
+        // O botão altera o texto consoante estamos num jogo local ou multijogador
+        Button btnReiniciar = new Button(modoRede ? "🏳️ Desistir da Partida" : "🏳️ Reiniciar Rápido");
         btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
 
         btnReiniciar.setOnAction(e -> {
             Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
-            alerta.setTitle("Reiniciar Jogo");
-            alerta.setHeaderText("Queres reiniciar a partida?");
+            alerta.setTitle(modoRede ? "Desistir da Partida" : "Reiniciar Jogo");
+            alerta.setHeaderText(modoRede ? "Queres mesmo desistir? O teu adversário vencerá por W.O." : "Queres reiniciar a partida?");
             alerta.showAndWait().ifPresent(resposta -> {
-                if(resposta == ButtonType.OK) prepararJogo(modoBot, modoRede, souHost, null);
+                if(resposta == ButtonType.OK) {
+                    if (modoRede) {
+                        if (!jogoInterrompido && !motorJogo.isJogoTerminado()) {
+                            // Envia o código secreto -1 para o outro PC!
+                            if (souHost && servidor != null) servidor.enviarJogada(-1);
+                            else if (!souHost && cliente != null) cliente.enviarJogada(-1);
+
+                            jogoInterrompido = true;
+                            processarDesistencia(true);
+                        }
+                    } else {
+                        prepararJogo(modoBot, modoRede, souHost, null);
+                    }
+                }
             });
         });
 
@@ -352,7 +367,7 @@ public class Main extends Application {
 
         // --- ACÇÕES E LISTENERS ---
         btnLancarDado.setOnAction(e -> {
-            if (!motorJogo.isJogoTerminado()) {
+            if (!motorJogo.isJogoTerminado() && !jogoInterrompido) {
                 btnLancarDado.setDisable(true);
                 animarDadoEExecutar(() -> {
                     int valorSorteado = motorJogo.getDado().rolar();
@@ -409,7 +424,6 @@ public class Main extends Application {
     }
 
     private void animarDadoEExecutar(Runnable acaoFinal) {
-        // Reproduz o som do dado quando a animação começa!
         if (somDado != null) {
             somDado.play();
         }
@@ -432,7 +446,14 @@ public class Main extends Application {
     }
 
     private void processarJogadaSincronizada(int valorDado) {
-        if (motorJogo.isJogoTerminado()) return;
+        if (motorJogo.isJogoTerminado() || jogoInterrompido) return;
+
+        // O SEGREDO: Intercetar a desistência enviada pelo adversário
+        if (valorDado == -1) {
+            jogoInterrompido = true;
+            processarDesistencia(false);
+            return;
+        }
 
         int indexAtual = motorJogo.getJogadorAtualIndex();
         boolean euJoguei = (!modoRede) ? (indexAtual == 0) : ((souHost && indexAtual == 0) || (!souHost && indexAtual == 1));
@@ -458,11 +479,13 @@ public class Main extends Application {
 
             PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.5));
             atrasoIA.setOnFinished(evt -> {
-                animarDadoEExecutar(() -> {
-                    int valorSorteadoBot = motorJogo.getDado().rolar();
-                    lblDadoIcon.setText(FACES_DADO[valorSorteadoBot]);
-                    processarJogadaSincronizada(valorSorteadoBot);
-                });
+                if (!jogoInterrompido) {
+                    animarDadoEExecutar(() -> {
+                        int valorSorteadoBot = motorJogo.getDado().rolar();
+                        lblDadoIcon.setText(FACES_DADO[valorSorteadoBot]);
+                        processarJogadaSincronizada(valorSorteadoBot);
+                    });
+                }
             });
             atrasoIA.play();
         } else {
@@ -477,6 +500,51 @@ public class Main extends Application {
             btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand; " +
                     (seguinteIndex == 0 ? "-fx-background-color: linear-gradient(to right, #3b82f6, #2563eb);" : "-fx-background-color: linear-gradient(to right, #f97316, #ea580c);"));
         }
+    }
+
+    /**
+     * Aplica os efeitos visuais e sonoros de uma desistência no tabuleiro.
+     */
+    private void processarDesistencia(boolean euDesisti) {
+        if (!euDesisti && somVitoria != null) {
+            somVitoria.play();
+        }
+
+        String mensagemFinal = euDesisti ? "DESISTISTE!" : "ADVERSÁRIO DESISTIU!";
+        Color corVitoria = euDesisti ? Color.CRIMSON : Color.web("#10b981");
+
+        lblTurnoStatus.setTextFill(corVitoria);
+        lblTurnoStatus.setText(mensagemFinal);
+        lblTituloPainel.setText("FIM DE JOGO");
+        btnLancarDado.setDisable(true);
+        lblDadoResultado.setText(euDesisti ? "[ Abandonaste a partida ]" : "[ Vitória por W.O. ]");
+
+        if(lblVitoriaGigante == null) {
+            lblVitoriaGigante = new Label(mensagemFinal);
+            lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 45));
+            lblVitoriaGigante.setTextFill(corVitoria);
+
+            DropShadow sombra = new DropShadow();
+            sombra.setRadius(15); sombra.setOffsetX(5); sombra.setOffsetY(5);
+            sombra.setColor(Color.color(0, 0, 0, 0.7));
+            lblVitoriaGigante.setEffect(sombra);
+            areaJogo.getChildren().add(lblVitoriaGigante);
+        } else {
+            lblVitoriaGigante.setText(mensagemFinal);
+            lblVitoriaGigante.setTextFill(corVitoria);
+        }
+
+        lblVitoriaGigante.setScaleX(0.0);
+        lblVitoriaGigante.setScaleY(0.0);
+        ScaleTransition st = new ScaleTransition(Duration.millis(800), lblVitoriaGigante);
+        st.setToX(1.3); st.setToY(1.3);
+        st.setCycleCount(2); st.setAutoReverse(true);
+        st.setOnFinished(e -> {
+            ScaleTransition st2 = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
+            st2.setToX(1.0); st2.setToY(1.0);
+            st2.play();
+        });
+        st.play();
     }
 
     private RadialGradient criarGradientePeca(Color corBase) {
@@ -495,7 +563,6 @@ public class Main extends Application {
     private void verificarCondicaoVitoria(int idJogador, int localizacao) {
         if (motorJogo.isJogoTerminado() || localizacao >= 100) {
 
-            // Som de Vitória final!
             if (somVitoria != null) {
                 somVitoria.play();
             }
@@ -646,7 +713,6 @@ public class Main extends Application {
         double tempoAcumulado = 0;
 
         if (novaPos > posAntiga && (novaPos - posAntiga) <= 6) {
-            // Movimento simples (dado)
             for (int i = posAntiga + 1; i <= novaPos; i++) {
                 double[] posAnterior = getCentroCasa(i - 1);
                 double[] posAtual = getCentroCasa(i);
@@ -672,14 +738,12 @@ public class Main extends Application {
                 ));
             }
         } else {
-            // Se for uma Cobra ou Escada! Reproduz o som correspondente:
             if (novaPos < posAntiga) {
                 if (somCobra != null) somCobra.play();
             } else {
                 if (somEscada != null) somEscada.play();
             }
 
-            // Animação de Deslize
             double[] posDestino = getCentroCasa(novaPos);
             tempoAcumulado += 600;
             timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
