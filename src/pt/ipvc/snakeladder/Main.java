@@ -7,10 +7,6 @@ import javafx.animation.RotateTransition;
 import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.animation.PauseTransition;
-import javafx.animation.FadeTransition;
-import javafx.animation.ParallelTransition;
-import javafx.animation.SequentialTransition;
-import javafx.animation.Interpolator;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -22,6 +18,7 @@ import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
+import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.RadialGradient;
@@ -32,15 +29,10 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import java.net.URL;
-import javafx.scene.media.AudioClip;
-
 import pt.ipvc.snakeladder.modelo.Jogo;
 import pt.ipvc.snakeladder.modelo.Jogador;
 import pt.ipvc.snakeladder.rede.ClienteJogo;
 import pt.ipvc.snakeladder.rede.ServidorJogo;
-
-import java.util.Optional;
 
 /**
  * Classe principal da aplicação Snake and Ladder.
@@ -49,10 +41,11 @@ import java.util.Optional;
  * comunicação de rede (Sockets) para o modo multiplayer.
  *
  * @author André e Eduardo
- * @version 1.0
+ * @version 1.4
  */
 public class Main extends Application {
 
+    private Stage palcoPrincipal;
     private Jogo motorJogo;
     private Jogador jogador1;
     private Jogador jogador2;
@@ -66,72 +59,198 @@ public class Main extends Application {
     private Label lblTituloPainel;
     private Label lblDadoIcon;
     private Button btnLancarDado;
-    private TextArea txtHistorico;
-
     private Label lblVitoriaGigante = null;
-    private SequentialTransition animacaoVitoriaAtiva = null;
 
     private boolean modoBot = false;
     private boolean modoRede = false;
     private boolean souHost = false;
+    private boolean jogoInterrompido = false;
+
     private ServidorJogo servidor;
     private ClienteJogo cliente;
 
-    // Nomes dos jogadores (com sugestões pré-definidas para agilizar)
-    private String nomeJ1 = "Dudz";
-    private String nomeJ2 = "Adversário";
-
-    // Sons do Jogo
-    private AudioClip somDado;
-    private AudioClip somEscada;
-    private AudioClip somCobra;
-    private AudioClip somVitoria;
-
     private final String[] FACES_DADO = {"", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"};
-
     private Timeline animacaoJ1;
     private Timeline animacaoJ2;
 
+    private AudioClip somDado;
+    private AudioClip somCobra;
+    private AudioClip somEscada;
+    private AudioClip somVitoria;
+
     @Override
     public void start(Stage primaryStage) {
-        carregarSons(); // Carrega os recursos de áudio logo ao abrir
+        this.palcoPrincipal = primaryStage;
+        carregarSons();
+        mostrarMenuPrincipal();
+    }
+
+    private void carregarSons() {
+        try {
+            somDado = new AudioClip(getClass().getResource("/resources/dado.wav").toExternalForm());
+            somCobra = new AudioClip(getClass().getResource("/resources/cobra.mp3").toExternalForm());
+            somEscada = new AudioClip(getClass().getResource("/resources/escada.wav").toExternalForm());
+            somVitoria = new AudioClip(getClass().getResource("/resources/vitoria.wav").toExternalForm());
+        } catch (Exception e) {
+            System.err.println("Aviso: Falha ao carregar ficheiros de som. Verifica a pasta resources.");
+        }
+    }
+
+    private void mostrarMenuPrincipal() {
+        VBox menuRoot = new VBox(25);
+        menuRoot.setAlignment(Pos.CENTER);
+        menuRoot.setStyle("-fx-background-color: linear-gradient(to bottom right, #f1f5f9, #cbd5e1);");
+
+        Label lblTitulo = new Label("SNAKE & LADDER");
+        lblTitulo.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 45));
+        lblTitulo.setTextFill(Color.web("#1e293b"));
+        lblTitulo.setEffect(new DropShadow(10, 0, 5, Color.color(0,0,0,0.15)));
+
+        Label lblSubtitulo = new Label("Laboratório de Programação");
+        lblSubtitulo.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        lblSubtitulo.setTextFill(Color.web("#475569"));
+        VBox.setMargin(lblSubtitulo, new Insets(-15, 0, 30, 0));
+
+        Button btnLocal = criarBotaoMenu("👥 2 Jogadores (Local)");
+        btnLocal.setOnAction(e -> prepararJogo(false, false, false, null));
+
+        Button btnBot = criarBotaoMenu("🤖 Jogador vs Bot");
+        btnBot.setOnAction(e -> prepararJogo(true, false, false, null));
+
+        Button btnHost = criarBotaoMenu("🌐 Criar Sala Online (Host)");
+        btnHost.setOnAction(e -> {
+            servidor = new ServidorJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
+            servidor.iniciarServidor(5000);
+            prepararJogo(false, true, true, null);
+        });
+
+        Button btnClient = criarBotaoMenu("🌐 Entrar em Sala (Client)");
+        btnClient.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog("127.0.0.1");
+            dialog.setTitle("Ligar a Sala");
+            dialog.setHeaderText("Ligar ao Computador do Host");
+            dialog.setContentText("Insere o IP do Servidor:");
+            dialog.showAndWait().ifPresent(ip -> {
+                cliente = new ClienteJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
+
+                // NOVO: Callbacks de Sucesso e Falha
+                cliente.conectar(ip, 5000,
+                        // Se a ligação for bem sucedida:
+                        () -> Platform.runLater(() -> prepararJogo(false, true, false, ip)),
+                        // Se falhar o IP:
+                        () -> Platform.runLater(() -> {
+                            Alert erro = new Alert(Alert.AlertType.ERROR);
+                            erro.setTitle("Erro de Ligação");
+                            erro.setHeaderText("Não foi possível encontrar a sala.");
+                            erro.setContentText("Verifica se o IP '" + ip + "' está correto e se o teu colega já criou a sala (Host).");
+                            erro.showAndWait();
+                        })
+                );
+            });
+        });
+
+        menuRoot.getChildren().addAll(lblTitulo, lblSubtitulo, btnLocal, btnBot, btnHost, btnClient);
+
+        Scene cenaMenu = new Scene(menuRoot, 820, 660);
+        palcoPrincipal.setTitle("Snake and Ladder - Laboratório de Programação");
+        palcoPrincipal.setScene(cenaMenu);
+        palcoPrincipal.show();
+    }
+
+    private Button criarBotaoMenu(String texto) {
+        Button btn = new Button(texto);
+        btn.setPrefWidth(280);
+        btn.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-background-color: #ffffff; -fx-border-color: #94a3b8; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-text-fill: #334155; -fx-cursor: hand; -fx-padding: 12px;");
+        btn.setEffect(new DropShadow(5, 0, 2, Color.color(0,0,0,0.08)));
+
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-background-color: #f8fafc; -fx-border-color: #3b82f6; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-text-fill: #2563eb; -fx-cursor: hand; -fx-padding: 12px;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-background-color: #ffffff; -fx-border-color: #94a3b8; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-text-fill: #334155; -fx-cursor: hand; -fx-padding: 12px;"));
+
+        return btn;
+    }
+
+    private void prepararJogo(boolean isBot, boolean isRede, boolean isHost, String ip) {
+        this.modoBot = isBot;
+        this.modoRede = isRede;
+        this.souHost = isHost;
+        this.jogoInterrompido = false;
 
         motorJogo = new Jogo();
         jogador1 = new Jogador(Color.DODGERBLUE);
         jogador2 = new Jogador(Color.ORANGE);
+        jogador1.posicaoProperty().set(1);
+        jogador2.posicaoProperty().set(1);
 
         motorJogo.adicionarJogador(jogador1);
         motorJogo.adicionarJogador(jogador2);
         configurarObstaculosFixos();
         motorJogo.iniciar();
 
+        BorderPane rootJogo = construirEcraJogo();
+
+        lblDadoIcon.setText("🎲");
+        lblDadoResultado.setText("[ Jogo Iniciado ]");
+
+        if (modoRede) {
+            if (souHost) {
+                lblTurnoStatus.setText("SALA CRIADA! JOGAS PRIMEIRO.");
+            } else {
+                lblTituloPainel.setText("ADVERSÁRIO");
+                lblTituloPainel.setTextFill(jogador2.getCor());
+                lblTurnoStatus.setText("A AGUARDAR JOGADA DO HOST...");
+                lblTurnoStatus.setTextFill(jogador2.getCor());
+                btnLancarDado.setDisable(true);
+            }
+        }
+
+        ScrollPane scrollPane = new ScrollPane(rootJogo);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setStyle("-fx-background-color: #f1f5f9; -fx-background: #f1f5f9; -fx-border-color: transparent;");
+        scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
+            scrollPane.setVvalue(scrollPane.getVvalue() - event.getDeltaY() / 250.0);
+            event.consume();
+        });
+
+        Scene cenaJogo = new Scene(scrollPane, 820, 660);
+        palcoPrincipal.setScene(cenaJogo);
+    }
+
+    private BorderPane construirEcraJogo() {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #f1f5f9;");
-
         DropShadow sombraPaineis = new DropShadow(15, 0, 5, Color.color(0, 0, 0, 0.08));
 
-        // --- TOPO: Menus ---
         HBox barraTopo = new HBox(15);
         barraTopo.setStyle("-fx-background-color: #ffffff; -fx-padding: 10px 20px;");
         barraTopo.setEffect(new DropShadow(5, 0, 2, Color.color(0, 0, 0, 0.05)));
         barraTopo.setAlignment(Pos.CENTER_LEFT);
 
-        MenuButton btnNovoJogo = new MenuButton("🔄 Novo Jogo Local");
-        btnNovoJogo.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-text-fill: #334155;");
-        MenuItem itemLocal = new MenuItem("👥 2 Jogadores (Local)");
-        MenuItem itemBot = new MenuItem("🤖 Jogador vs Bot");
-        btnNovoJogo.getItems().addAll(itemLocal, itemBot);
+        Button btnVoltarMenu = new Button("⬅ Voltar ao Menu");
+        btnVoltarMenu.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-text-fill: #334155;");
 
-        MenuButton btnRede = new MenuButton("🌐 Multiplayer Online");
-        btnRede.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 6px; -fx-text-fill: #334155;");
-        MenuItem itemHost = new MenuItem("Criar Sala (Host)");
-        MenuItem itemClient = new MenuItem("Entrar em Sala (Client)");
-        btnRede.getItems().addAll(itemHost, itemClient);
+        btnVoltarMenu.setOnAction(e -> {
+            Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
+            alerta.setTitle("Abandonar Jogo");
+            alerta.setHeaderText("Tens a certeza que queres voltar ao Menu?");
+            alerta.setContentText("Todo o progresso desta partida será perdido.");
 
-        barraTopo.getChildren().addAll(btnNovoJogo, btnRede);
+            alerta.showAndWait().ifPresent(resposta -> {
+                if (resposta == ButtonType.OK) {
+                    if (modoRede && !jogoInterrompido && !motorJogo.isJogoTerminado()) {
+                        if (souHost && servidor != null) servidor.enviarJogada(-1);
+                        else if (!souHost && cliente != null) cliente.enviarJogada(-1);
+                    }
+                    this.servidor = null;
+                    this.cliente = null;
+                    mostrarMenuPrincipal();
+                }
+            });
+        });
+
+        barraTopo.getChildren().add(btnVoltarMenu);
         root.setTop(barraTopo);
 
-        // --- CENTRO: Tabuleiro ---
         areaJogo = new StackPane();
         areaJogo.setEffect(sombraPaineis);
         BorderPane.setMargin(areaJogo, new Insets(15, 10, 15, 20));
@@ -164,15 +283,14 @@ public class Main extends Application {
         areaJogo.getChildren().addAll(canvas, camadaPecas);
         root.setCenter(areaJogo);
 
-        // --- LATERAL: Painel de Controlo ---
-        VBox painelLateral = new VBox(15);
+        VBox painelLateral = new VBox(20);
         painelLateral.setStyle("-fx-background-color: #ffffff; -fx-padding: 25px 20px; -fx-background-radius: 12px;");
         painelLateral.setEffect(sombraPaineis);
         painelLateral.setAlignment(Pos.TOP_CENTER);
-        painelLateral.setPrefWidth(240);
+        painelLateral.setPrefWidth(220);
         BorderPane.setMargin(painelLateral, new Insets(15, 20, 15, 10));
 
-        lblTituloPainel = new Label(nomeJ1.toUpperCase());
+        lblTituloPainel = new Label("O TEU TURNO");
         lblTituloPainel.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 20));
         lblTituloPainel.setTextFill(jogador1.getCor());
 
@@ -186,14 +304,33 @@ public class Main extends Application {
         Region espacador = new Region();
         VBox.setVgrow(espacador, Priority.ALWAYS);
 
-        // CORRIGIDO: O botão foi renomeado para "btnReiniciarRapido"
-        Button btnReiniciarRapido = new Button("🏳️ Reiniciar Rápido");
-        btnReiniciarRapido.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
+        Button btnReiniciar = new Button(modoRede ? "🏳️ Desistir da Partida" : "🏳️ Reiniciar Rápido");
+        btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
 
-        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnReiniciarRapido);
+        btnReiniciar.setOnAction(e -> {
+            Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
+            alerta.setTitle(modoRede ? "Desistir da Partida" : "Reiniciar Jogo");
+            alerta.setHeaderText(modoRede ? "Queres mesmo desistir? O teu adversário vencerá por W.O." : "Queres reiniciar a partida?");
+            alerta.showAndWait().ifPresent(resposta -> {
+                if(resposta == ButtonType.OK) {
+                    if (modoRede) {
+                        if (!jogoInterrompido && !motorJogo.isJogoTerminado()) {
+                            if (souHost && servidor != null) servidor.enviarJogada(-1);
+                            else if (!souHost && cliente != null) cliente.enviarJogada(-1);
+
+                            jogoInterrompido = true;
+                            processarDesistencia(true);
+                        }
+                    } else {
+                        prepararJogo(modoBot, modoRede, souHost, null);
+                    }
+                }
+            });
+        });
+
+        painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnReiniciar);
         root.setRight(painelLateral);
 
-        // --- BOTTOM: Menu de Estado ---
         HBox barraInferior = new HBox();
         barraInferior.setStyle("-fx-background-color: #ffffff; -fx-padding: 15px 25px; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px; -fx-border-width: 1px;");
         barraInferior.setEffect(sombraPaineis);
@@ -207,7 +344,8 @@ public class Main extends Application {
         lblTurnoStatus.setFont(Font.font("System", FontWeight.BLACK, 15));
         lblTurnoStatus.setTextFill(jogador1.getCor());
 
-        lblEstadoDetalhado = new Label(nomeJ1 + " (Azul): Casa 1  |  " + nomeJ2 + " (Laranja): Casa 1");
+        String oponenteNome = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
+        lblEstadoDetalhado = new Label("Tu (Azul): Casa 1  |  " + oponenteNome + ": Casa 1");
         lblEstadoDetalhado.setFont(Font.font("System", FontWeight.NORMAL, 14));
         lblEstadoDetalhado.setTextFill(Color.web("#475569"));
 
@@ -231,119 +369,23 @@ public class Main extends Application {
         barraInferior.getChildren().addAll(statusEsquerda, spacer, statusDireita);
         root.setBottom(barraInferior);
 
-        // --- ACÇÕES DOS BOTÕES E REDE ---
+        // --- ACÇÕES E LISTENERS ---
         btnLancarDado.setOnAction(e -> {
-            if (!motorJogo.isJogoTerminado()) {
+            if (!motorJogo.isJogoTerminado() && !jogoInterrompido) {
                 btnLancarDado.setDisable(true);
-
-                RotateTransition rt = new RotateTransition(Duration.millis(400), lblDadoIcon);
-                rt.setByAngle(360);
-                rt.setCycleCount(1);
-
-                rt.setOnFinished(anim -> {
+                animarDadoEExecutar(() -> {
                     int valorSorteado = motorJogo.getDado().rolar();
+                    lblDadoIcon.setText(FACES_DADO[valorSorteado]);
 
                     if (modoRede) {
                         if (souHost && servidor != null) servidor.enviarJogada(valorSorteado);
                         else if (!souHost && cliente != null) cliente.enviarJogada(valorSorteado);
                     }
-
                     processarJogadaSincronizada(valorSorteado);
                 });
-
-                rt.play();
             }
         });
 
-        itemLocal.setOnAction(e -> reiniciarJogo(false, gc, canvas));
-        itemBot.setOnAction(e -> reiniciarJogo(true, gc, canvas));
-
-        // --- CÓDIGO DO HOST (CRIAR SALA) ---
-        itemHost.setOnAction(e -> {
-            servidor = new ServidorJogo(valor -> Platform.runLater(() -> {
-                // Se receber o código secreto -1, reinicia o jogo
-                if (valor == -1) {
-                    reiniciarJogo(false, gc, canvas);
-                    lblTituloPainel.setText("O TEU TURNO");
-                    lblTurnoStatus.setText("O ADVERSÁRIO REINICIOU A PARTIDA!");
-                    lblTurnoStatus.setTextFill(Color.web("#10b981"));
-                    btnLancarDado.setDisable(false);
-                } else {
-                    processarJogadaSincronizada(valor);
-                }
-            }));
-
-            servidor.iniciarServidor(5000);
-            modoRede = true;
-            souHost = true;
-            reiniciarJogo(false, gc, canvas);
-
-            lblTurnoStatus.setText("SALA CRIADA! JOGAS PRIMEIRO.");
-            Alert info = new Alert(Alert.AlertType.INFORMATION);
-            info.setTitle("Modo Servidor");
-            info.setHeaderText("Sala aberta com sucesso!");
-            info.setContentText("Podes passar o teu IP local ao teu colega para ele entrar no jogo.");
-            info.show();
-        });
-
-        // --- CÓDIGO DO CLIENTE (ENTRAR NA SALA) ---
-        itemClient.setOnAction(e -> {
-            TextInputDialog dialog = new TextInputDialog("127.0.0.1");
-            dialog.setTitle("Ligar a Sala");
-            dialog.setHeaderText("Ligar ao Computador do Host");
-            dialog.setContentText("Insere o IP do Servidor:");
-
-            dialog.showAndWait().ifPresent(ip -> {
-                cliente = new ClienteJogo(valor -> Platform.runLater(() -> {
-                    // Se receber o código secreto -1, reinicia o jogo
-                    if (valor == -1) {
-                        reiniciarJogo(false, gc, canvas);
-                        lblTituloPainel.setText("ADVERSÁRIO");
-                        lblTurnoStatus.setText("A PARTIDA FOI REINICIADA! A AGUARDAR...");
-                        lblTurnoStatus.setTextFill(Color.CRIMSON);
-                        btnLancarDado.setDisable(true);
-                    } else {
-                        processarJogadaSincronizada(valor);
-                    }
-                }));
-
-                cliente.conectar(ip, 5000);
-                modoRede = true;
-                souHost = false;
-                reiniciarJogo(false, gc, canvas);
-
-                btnLancarDado.setDisable(true);
-                lblTituloPainel.setText("ADVERSÁRIO");
-                lblTituloPainel.setTextFill(jogador1.getCor());
-                lblTurnoStatus.setText("A AGUARDAR JOGADA DO HOST...");
-                lblTurnoStatus.setTextFill(jogador1.getCor());
-                lblEstadoDetalhado.setText("Adversário (Azul): Casa 1 | Tu (Laranja): Casa 1");
-
-                Alert info = new Alert(Alert.AlertType.INFORMATION);
-                info.setTitle("Modo Cliente");
-                info.setHeaderText("Ligado à sala com sucesso!");
-                info.setContentText("Estás conectado ao IP: " + ip + "\n\nO anfitrião (Host) tem de fazer a primeira jogada. Fica atento!");
-                info.show();
-            });
-        });
-
-        // --- BOTÃO REINICIAR RÁPIDO ---
-        btnReiniciarRapido.setOnAction(e -> {
-            reiniciarJogo(false, gc, canvas);
-
-            if (modoRede) {
-                if (souHost && servidor != null) {
-                    servidor.enviarJogada(-1); // Envia o código secreto de reinício
-                    btnLancarDado.setDisable(false);
-                } else if (!souHost && cliente != null) {
-                    cliente.enviarJogada(-1); // Envia o código secreto de reinício
-                    btnLancarDado.setDisable(true);
-                    lblTurnoStatus.setText("REINICIASTE O JOGO. A AGUARDAR HOST...");
-                }
-            }
-        });
-
-        // --- LISTENERS REATIVOS ---
         jogador1.posicaoProperty().addListener((obs, oldVal, newVal) -> {
             int posAntiga = oldVal.intValue();
             int novaPos = newVal.intValue();
@@ -356,15 +398,9 @@ public class Main extends Application {
                 };
 
                 if (animacaoJ1 != null && animacaoJ1.getStatus() == Animation.Status.RUNNING) {
-                    animacaoJ1.setOnFinished(e -> {
-                        animacaoJ1 = t;
-                        t.play();
-                        t.setOnFinished(e2 -> aoTerminar.run());
-                    });
+                    animacaoJ1.setOnFinished(e -> { animacaoJ1 = t; t.play(); t.setOnFinished(e2 -> aoTerminar.run()); });
                 } else {
-                    animacaoJ1 = t;
-                    t.play();
-                    t.setOnFinished(e -> aoTerminar.run());
+                    animacaoJ1 = t; t.play(); t.setOnFinished(e -> aoTerminar.run());
                 }
             }
         });
@@ -381,119 +417,20 @@ public class Main extends Application {
                 };
 
                 if (animacaoJ2 != null && animacaoJ2.getStatus() == Animation.Status.RUNNING) {
-                    animacaoJ2.setOnFinished(e -> {
-                        animacaoJ2 = t;
-                        t.play();
-                        t.setOnFinished(e2 -> aoTerminar.run());
-                    });
+                    animacaoJ2.setOnFinished(e -> { animacaoJ2 = t; t.play(); t.setOnFinished(e2 -> aoTerminar.run()); });
                 } else {
-                    animacaoJ2 = t;
-                    t.play();
-                    t.setOnFinished(e -> aoTerminar.run());
+                    animacaoJ2 = t; t.play(); t.setOnFinished(e -> aoTerminar.run());
                 }
             }
         });
 
-        ScrollPane scrollPane = new ScrollPane(root);
-        scrollPane.setFitToWidth(true); scrollPane.setFitToHeight(true);
-        scrollPane.setStyle("-fx-background-color: #f1f5f9; -fx-background: #f1f5f9; -fx-border-color: transparent;");
-        scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> {
-            scrollPane.setVvalue(scrollPane.getVvalue() - event.getDeltaY() / 250.0);
-            event.consume();
-        });
-
-        Scene scene = new Scene(scrollPane, 820, 660);
-        primaryStage.setTitle("Snake and Ladder - Laboratório de Programação");
-        primaryStage.setScene(scene);
-        primaryStage.show();
-
-        // Pede os nomes logo na abertura da App para personalizar a primeira partida
-        Platform.runLater(() -> {
-            pedirNomes(false);
-            atualizarTextosComNomes();
-        });
-    }
-
-    // --- MÉTODOS DE ÁUDIO ---
-    private void carregarSons() {
-        try {
-            URL urlDado = getClass().getResource("/resources/dado.wav");
-            if (urlDado != null) somDado = new AudioClip(urlDado.toExternalForm());
-
-            URL urlEscada = getClass().getResource("/resources/escada.wav");
-            if (urlEscada != null) somEscada = new AudioClip(urlEscada.toExternalForm());
-
-            URL urlCobra = getClass().getResource("/resources/cobra.mp3");
-            if (urlCobra != null) somCobra = new AudioClip(urlCobra.toExternalForm());
-
-            URL urlVitoria = getClass().getResource("/resources/vitoria.wav");
-            if (urlVitoria != null) somVitoria = new AudioClip(urlVitoria.toExternalForm());
-
-        } catch (Exception e) {
-            System.out.println("Aviso: Ficheiros de som não configurados. A jogar em modo silencioso.");
-        }
-    }
-
-    private void tocarSom(AudioClip clip, double duracaoSegundos) {
-        if (clip != null) {
-            clip.play(); // Começa a tocar o som
-
-            // Se a duração for maior que zero, cria um temporizador para o desligar
-            if (duracaoSegundos > 0) {
-                PauseTransition pararSom = new PauseTransition(Duration.seconds(duracaoSegundos));
-                pararSom.setOnFinished(e -> clip.stop());
-                pararSom.play();
-            }
-        }
-    }
-
-    // --- GESTÃO DE NOMES ---
-    private void pedirNomes(boolean modoSoP1) {
-        TextInputDialog d1 = new TextInputDialog(nomeJ1);
-        d1.setTitle("Registo de Jogador");
-        d1.setHeaderText("Configuração: Jogador 1");
-        d1.setContentText("Introduz o teu nome (Peão Azul):");
-        d1.showAndWait().ifPresent(n -> nomeJ1 = n.trim().isEmpty() ? "Jogador 1" : n);
-
-        if (!modoSoP1) {
-            TextInputDialog d2 = new TextInputDialog("André");
-            d2.setTitle("Registo de Jogador");
-            d2.setHeaderText("Configuração: Jogador 2");
-            d2.setContentText("Introduz o nome do oponente (Peão Laranja):");
-            d2.showAndWait().ifPresent(n -> nomeJ2 = n.trim().isEmpty() ? "Jogador 2" : n);
-        } else {
-            nomeJ2 = modoRede ? "Adversário" : "Bot";
-        }
-    }
-
-    private void atualizarTextosComNomes() {
-        lblTituloPainel.setText(nomeJ1.toUpperCase());
-        lblEstadoDetalhado.setText(nomeJ1 + " (Azul): Casa 1  |  " + nomeJ2 + " (Laranja): Casa 1");
-    }
-
-    private void confirmarEExecutar(String titulo, String cabecalho, Runnable acaoConfirmada) {
-        if (motorJogo.isJogoTerminado() || (jogador1.getPosicao() == 1 && jogador2.getPosicao() == 1)) {
-            acaoConfirmada.run();
-            return;
-        }
-
-        Alert alerta = new Alert(Alert.AlertType.CONFIRMATION);
-        alerta.setTitle(titulo);
-        alerta.setHeaderText(cabecalho);
-        alerta.setContentText("O progresso atual será perdido. Tens a certeza que queres continuar?");
-
-        ButtonType btnSim = new ButtonType("Sim, reiniciar", ButtonBar.ButtonData.OK_DONE);
-        ButtonType btnNao = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        alerta.getButtonTypes().setAll(btnSim, btnNao);
-
-        Optional<ButtonType> resultado = alerta.showAndWait();
-        if (resultado.isPresent() && resultado.get() == btnSim) {
-            acaoConfirmada.run();
-        }
+        return root;
     }
 
     private void animarDadoEExecutar(Runnable acaoFinal) {
-        tocarSom(somDado, 0.6); // O som dispara exatamente quando a animação começa!
+        if (somDado != null) {
+            somDado.play();
+        }
 
         ScaleTransition st = new ScaleTransition(Duration.millis(250), lblDadoIcon);
         st.setByX(0.5); st.setByY(0.5);
@@ -507,71 +444,59 @@ public class Main extends Application {
             lblDadoIcon.setText(FACES_DADO[(int)(Math.random() * 6) + 1]);
         }));
         shuffleFaces.setCycleCount(10);
-
         shuffleFaces.setOnFinished(anim -> acaoFinal.run());
 
         st.play(); rt.play(); shuffleFaces.play();
     }
 
     private void processarJogadaSincronizada(int valorDado) {
-        if (motorJogo.isJogoTerminado()) return;
+        if (motorJogo.isJogoTerminado() || jogoInterrompido) return;
+
+        if (valorDado == -1) {
+            jogoInterrompido = true;
+            processarDesistencia(false);
+            return;
+        }
 
         int indexAtual = motorJogo.getJogadorAtualIndex();
         boolean euJoguei = (!modoRede) ? (indexAtual == 0) : ((souHost && indexAtual == 0) || (!souHost && indexAtual == 1));
 
-        String nomeResponsavel = indexAtual == 0 ? nomeJ1 : nomeJ2;
-        String prefixoTexto = nomeResponsavel + " tirou";
+        String prefixoTexto = euJoguei ? "Tu tiraste" : "O Adversário tirou";
+        if (!modoRede && modoBot && indexAtual == 1) prefixoTexto = "O Bot tirou";
 
         lblDadoIcon.setText(FACES_DADO[valorDado]);
-
-        int posAntiga = motorJogo.getJogadores().get(indexAtual).getPosicao();
         motorJogo.jogarTurno(valorDado);
-        int posNova = motorJogo.getJogadores().get(indexAtual).getPosicao();
-
         lblDadoResultado.setText(prefixoTexto + " um " + valorDado + "!");
-
-        String corLog = indexAtual == 0 ? "(Azul)" : "(Laranja)";
-        String logLinha = nomeResponsavel + " " + corLog + " tirou " + valorDado + ".\n➔ Casa " + posAntiga + " para " + posNova;
-
-        if (posNova > posAntiga + valorDado && posNova != 100) {
-            logLinha += " \uD83E\uDE9C (Subiu uma Escada!)";
-        } else if (posNova < posAntiga) {
-            logLinha += " \uD83D\uDC0D (Desceu uma Cobra!)";
-        }
-
-        if (txtHistorico != null) {
-            txtHistorico.appendText(logLinha + "\n\n");
-        }
 
         if (motorJogo.isJogoTerminado()) return;
 
         int seguinteIndex = motorJogo.getJogadorAtualIndex();
         Jogador seguinteJogador = motorJogo.getJogadores().get(seguinteIndex);
-        String nomeSeguinte = seguinteIndex == 0 ? nomeJ1 : nomeJ2;
 
         if (!modoRede && modoBot && seguinteIndex == 1) {
-            lblTituloPainel.setText(nomeSeguinte.toUpperCase());
+            lblTituloPainel.setText("BOT (Laranja)");
             lblTituloPainel.setTextFill(jogador2.getCor());
-            lblTurnoStatus.setText("A PENSAR...");
+            lblTurnoStatus.setText("TURNO DO BOT...");
             lblTurnoStatus.setTextFill(jogador2.getCor());
             btnLancarDado.setDisable(true);
 
             PauseTransition atrasoIA = new PauseTransition(Duration.seconds(1.5));
             atrasoIA.setOnFinished(evt -> {
-                tocarSom(somDado, 0.6);
-                animarDadoEExecutar(() -> {
-                    int valorSorteadoBot = motorJogo.getDado().rolar();
-                    lblDadoIcon.setText(FACES_DADO[valorSorteadoBot]);
-                    processarJogadaSincronizada(valorSorteadoBot);
-                });
+                if (!jogoInterrompido) {
+                    animarDadoEExecutar(() -> {
+                        int valorSorteadoBot = motorJogo.getDado().rolar();
+                        lblDadoIcon.setText(FACES_DADO[valorSorteadoBot]);
+                        processarJogadaSincronizada(valorSorteadoBot);
+                    });
+                }
             });
             atrasoIA.play();
         } else {
             boolean eMinhaVez = (!modoRede) ? true : ((souHost && seguinteIndex == 0) || (!souHost && seguinteIndex == 1));
 
-            lblTituloPainel.setText(nomeSeguinte.toUpperCase());
+            lblTituloPainel.setText(eMinhaVez ? "O TEU TURNO" : "ADVERSÁRIO");
             lblTituloPainel.setTextFill(seguinteJogador.getCor());
-            lblTurnoStatus.setText(eMinhaVez ? "A TUA VEZ DE JOGAR" : "A AGUARDAR JOGADA...");
+            lblTurnoStatus.setText(eMinhaVez ? "A TUA VEZ DE JOGAR" : "TURNO DO ADVERSÁRIO");
             lblTurnoStatus.setTextFill(seguinteJogador.getCor());
 
             btnLancarDado.setDisable(!eMinhaVez);
@@ -580,49 +505,46 @@ public class Main extends Application {
         }
     }
 
-    private void reiniciarJogo(boolean ativarBot, GraphicsContext gc, Canvas canvas) {
-        this.modoBot = ativarBot;
-        if(modoBot) this.modoRede = false;
-
-        motorJogo = new Jogo();
-        jogador1.posicaoProperty().set(1);
-        jogador2.posicaoProperty().set(1);
-
-        motorJogo.adicionarJogador(jogador1);
-        motorJogo.adicionarJogador(jogador2);
-        configurarObstaculosFixos();
-        motorJogo.iniciar();
-
-        if (lblVitoriaGigante != null) {
-            if (animacaoVitoriaAtiva != null) {
-                animacaoVitoriaAtiva.stop();
-            }
-            areaJogo.getChildren().remove(lblVitoriaGigante);
-            lblVitoriaGigante = null;
+    private void processarDesistencia(boolean euDesisti) {
+        if (!euDesisti && somVitoria != null) {
+            somVitoria.play();
         }
 
-        lblDadoIcon.setText("🎲");
-        lblTituloPainel.setText(nomeJ1.toUpperCase());
-        lblTituloPainel.setTextFill(jogador1.getCor());
-        lblTurnoStatus.setText("A TUA VEZ DE JOGAR");
-        lblTurnoStatus.setTextFill(jogador1.getCor());
+        String mensagemFinal = euDesisti ? "DESISTISTE!" : "ADVERSÁRIO DESISTIU!";
+        Color corVitoria = euDesisti ? Color.CRIMSON : Color.web("#10b981");
 
-        lblEstadoDetalhado.setText(nomeJ1 + " (Azul): Casa 1  |  " + nomeJ2 + " (Laranja): Casa 1");
-        lblDadoResultado.setText("[ Jogo Reiniciado ]");
+        lblTurnoStatus.setTextFill(corVitoria);
+        lblTurnoStatus.setText(mensagemFinal);
+        lblTituloPainel.setText("FIM DE JOGO");
+        btnLancarDado.setDisable(true);
+        lblDadoResultado.setText(euDesisti ? "[ Abandonaste a partida ]" : "[ Vitória por W.O. ]");
 
-        if (txtHistorico != null) {
-            txtHistorico.setText("=== JOGO REINICIADO ===\nBoa sorte, " + nomeJ1 + " e " + nomeJ2 + "!\n\n");
+        if(lblVitoriaGigante == null) {
+            lblVitoriaGigante = new Label(mensagemFinal);
+            lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 45));
+            lblVitoriaGigante.setTextFill(corVitoria);
+
+            DropShadow sombra = new DropShadow();
+            sombra.setRadius(15); sombra.setOffsetX(5); sombra.setOffsetY(5);
+            sombra.setColor(Color.color(0, 0, 0, 0.7));
+            lblVitoriaGigante.setEffect(sombra);
+            areaJogo.getChildren().add(lblVitoriaGigante);
+        } else {
+            lblVitoriaGigante.setText(mensagemFinal);
+            lblVitoriaGigante.setTextFill(corVitoria);
         }
 
-        btnLancarDado.setDisable(false);
-        btnLancarDado.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-background-color: linear-gradient(to right, #3b82f6, #2563eb); -fx-text-fill: white; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
-
-        gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
-        desenharTabuleiro(gc);
-        desenharObstaculosVisuais(gc);
-
-        criarAnimacaoPosicao(pecaJogador1, 1, 1, -4, false);
-        criarAnimacaoPosicao(pecaJogador2, 1, 1, 4, false);
+        lblVitoriaGigante.setScaleX(0.0);
+        lblVitoriaGigante.setScaleY(0.0);
+        ScaleTransition st = new ScaleTransition(Duration.millis(800), lblVitoriaGigante);
+        st.setToX(1.3); st.setToY(1.3);
+        st.setCycleCount(2); st.setAutoReverse(true);
+        st.setOnFinished(e -> {
+            ScaleTransition st2 = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
+            st2.setToX(1.0); st2.setToY(1.0);
+            st2.play();
+        });
+        st.play();
     }
 
     private RadialGradient criarGradientePeca(Color corBase) {
@@ -634,37 +556,40 @@ public class Main extends Application {
     private void atualizarBarraEstado() {
         int posJ1 = jogador1.getPosicao() > 100 ? 100 : jogador1.getPosicao();
         int posJ2 = jogador2.getPosicao() > 100 ? 100 : jogador2.getPosicao();
-        lblEstadoDetalhado.setText(nomeJ1 + " (Azul): Casa " + posJ1 + "  |  " + nomeJ2 + " (Laranja): Casa " + posJ2);
+        String oponente = modoRede ? "Adversário" : (modoBot ? "Bot" : "J2");
+        lblEstadoDetalhado.setText("Tu (Azul): Casa " + posJ1 + "  |  " + oponente + ": Casa " + posJ2);
     }
 
     private void verificarCondicaoVitoria(int idJogador, int localizacao) {
         if (motorJogo.isJogoTerminado() || localizacao >= 100) {
+
+            if (somVitoria != null) {
+                somVitoria.play();
+            }
+
             String mensagemFinal;
             Color corVitoria;
 
             if (idJogador == 1) {
-                mensagemFinal = "VITÓRIA DE\n" + nomeJ1.toUpperCase() + "!";
+                mensagemFinal = "GANHASTE!";
                 corVitoria = Color.web("#10b981");
-                tocarSom(somVitoria, 5.0); // Dispara som de celebração
             } else if (idJogador == 99) {
                 mensagemFinal = "BOT VENCEU!";
                 corVitoria = Color.CRIMSON;
             } else {
-                mensagemFinal = nomeJ2.toUpperCase() + "\nGANHOU!";
+                mensagemFinal = "ADVERSÁRIO GANHOU!";
                 corVitoria = Color.CRIMSON;
             }
 
             lblTurnoStatus.setTextFill(corVitoria);
-            lblTurnoStatus.setText("PARTIDA TERMINADA");
+            lblTurnoStatus.setText(mensagemFinal);
             lblTituloPainel.setText("FIM DE JOGO");
             btnLancarDado.setDisable(true);
 
             if(lblVitoriaGigante == null) {
                 lblVitoriaGigante = new Label(mensagemFinal);
-                lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 65));
+                lblVitoriaGigante.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 70));
                 lblVitoriaGigante.setTextFill(corVitoria);
-                lblVitoriaGigante.setAlignment(Pos.CENTER);
-                lblVitoriaGigante.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
 
                 DropShadow sombra = new DropShadow();
                 sombra.setRadius(15); sombra.setOffsetX(5); sombra.setOffsetY(5);
@@ -673,39 +598,16 @@ public class Main extends Application {
                 areaJogo.getChildren().add(lblVitoriaGigante);
             }
 
-            lblVitoriaGigante.setScaleX(0.5);
-            lblVitoriaGigante.setScaleY(0.5);
-            lblVitoriaGigante.setOpacity(0.0);
-
-            FadeTransition fadeIn = new FadeTransition(Duration.millis(400), lblVitoriaGigante);
-            fadeIn.setToValue(1.0);
-
-            ScaleTransition scaleUp = new ScaleTransition(Duration.millis(400), lblVitoriaGigante);
-            scaleUp.setToX(1.4); scaleUp.setToY(1.4);
-            scaleUp.setInterpolator(Interpolator.EASE_OUT);
-
-            ScaleTransition scaleDown = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
-            scaleDown.setToX(1.0); scaleDown.setToY(1.0);
-            scaleDown.setInterpolator(Interpolator.EASE_IN);
-
-            RotateTransition wobble = new RotateTransition(Duration.millis(100), lblVitoriaGigante);
-            wobble.setByAngle(10);
-            wobble.setCycleCount(6);
-            wobble.setAutoReverse(true);
-
-            ScaleTransition pulsar = new ScaleTransition(Duration.millis(1000), lblVitoriaGigante);
-            pulsar.setToX(1.08); pulsar.setToY(1.08);
-            pulsar.setCycleCount(Animation.INDEFINITE);
-            pulsar.setAutoReverse(true);
-
-            animacaoVitoriaAtiva = new SequentialTransition(
-                    new ParallelTransition(fadeIn, scaleUp),
-                    scaleDown,
-                    wobble,
-                    pulsar
-            );
-
-            animacaoVitoriaAtiva.play();
+            lblVitoriaGigante.setScaleX(0.0);
+            lblVitoriaGigante.setScaleY(0.0);
+            ScaleTransition st = new ScaleTransition(Duration.millis(800), lblVitoriaGigante);
+            st.setToX(1.3); st.setToY(1.3);
+            st.setCycleCount(2); st.setAutoReverse(true);
+            st.setOnFinished(e -> {
+                ScaleTransition st2 = new ScaleTransition(Duration.millis(300), lblVitoriaGigante);
+                st2.setToX(1.0); st2.setToY(1.0); st2.play();
+            });
+            st.play();
         }
     }
 
@@ -804,7 +706,7 @@ public class Main extends Application {
             double[] pos = getCentroCasa(novaPos);
             circulo.setCenterX(pos[0] + desvioX);
             circulo.setCenterY(pos[1]);
-            return null; // Nenhuma animação pendente
+            return null;
         }
 
         Timeline timeline = new Timeline();
@@ -836,21 +738,13 @@ public class Main extends Application {
                 ));
             }
         } else {
-            // Se for uma Cobra ou Escada -> Desliza elegantemente
+            if (novaPos < posAntiga) {
+                if (somCobra != null) somCobra.play();
+            } else {
+                if (somEscada != null) somEscada.play();
+            }
+
             double[] posDestino = getCentroCasa(novaPos);
-
-            // NOVO: Descobre se está a subir ou a descer ANTES de criar o evento
-            boolean aSubir = novaPos > posAntiga;
-
-            // Adiciona um evento no instante ZERO da animação para tocar o som certo
-            timeline.getKeyFrames().add(new KeyFrame(Duration.ZERO, evt -> {
-                if (aSubir) {
-                    tocarSom(somEscada, 1.5); // A peça está a subir, toca escada
-                } else {
-                    tocarSom(somCobra, 1.5);  // A peça está a descer, toca cobra
-                }
-            }));
-
             tempoAcumulado += 600;
             timeline.getKeyFrames().add(new KeyFrame(Duration.millis(tempoAcumulado),
                     new KeyValue(circulo.centerXProperty(), posDestino[0] + desvioX, javafx.animation.Interpolator.EASE_BOTH),
