@@ -9,7 +9,7 @@ import java.net.*;
  * e sincronizar as jogadas com o motor do jogo local.
  *
  * @author André e Eduardo
- * @version 1.0
+ * @version 1.2
  */
 public class ClienteJogo {
     private Socket socket;
@@ -41,22 +41,32 @@ public class ClienteJogo {
 
     /**
      * Estabelece a ligação a um servidor remoto utilizando Sockets num processo em segundo plano (Thread).
+     * Inclui um limite de tempo (timeout) para evitar bloqueios na interface gráfica caso o IP não exista.
      *
      * @param ip O endereço IP da máquina host.
      * @param porta A porta TCP onde o servidor remoto se encontra à escuta.
+     * @param aoSucesso Função (Callback) executada se a ligação for estabelecida com sucesso.
+     * @param aoFalhar Função (Callback) executada se a ligação falhar (ex: IP inválido ou Host não encontrado).
      */
-    public void conectar(String ip, int porta) {
+    public void conectar(String ip, int porta, Runnable aoSucesso, Runnable aoFalhar) {
         new Thread(() -> {
             try {
-                socket = new Socket(ip, porta);
+                socket = new Socket();
+                // Tenta ligar durante um máximo de 3 segundos para não congelar o jogo
+                socket.connect(new InetSocketAddress(ip, porta), 3000);
                 System.out.println("Conectado ao servidor no IP: " + ip);
 
                 out = new DataOutputStream(socket.getOutputStream());
                 in = new DataInputStream(socket.getInputStream());
 
+                // Se chegou aqui sem dar erro, avisa a interface gráfica que correu bem!
+                if (aoSucesso != null) aoSucesso.run();
+
                 ouvirServidor();
             } catch (IOException e) {
                 System.out.println("Erro ao conectar ao servidor.");
+                // Se deu erro, avisa a interface gráfica para mostrar o popup
+                if (aoFalhar != null) aoFalhar.run();
             }
         }).start();
     }
