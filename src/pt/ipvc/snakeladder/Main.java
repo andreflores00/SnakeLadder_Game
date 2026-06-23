@@ -41,7 +41,7 @@ import pt.ipvc.snakeladder.rede.ServidorJogo;
  * comunicação de rede (Sockets) para o modo multiplayer.
  *
  * @author André e Eduardo
- * @version 1.4
+ * @version 1.5
  */
 public class Main extends Application {
 
@@ -133,11 +133,8 @@ public class Main extends Application {
             dialog.showAndWait().ifPresent(ip -> {
                 cliente = new ClienteJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
 
-                // NOVO: Callbacks de Sucesso e Falha
                 cliente.conectar(ip, 5000,
-                        // Se a ligação for bem sucedida:
                         () -> Platform.runLater(() -> prepararJogo(false, true, false, ip)),
-                        // Se falhar o IP:
                         () -> Platform.runLater(() -> {
                             Alert erro = new Alert(Alert.AlertType.ERROR);
                             erro.setTitle("Erro de Ligação");
@@ -738,11 +735,16 @@ public class Main extends Application {
                 ));
             }
         } else {
-            if (novaPos < posAntiga) {
-                if (somCobra != null) somCobra.play();
-            } else {
-                if (somEscada != null) somEscada.play();
-            }
+            // CORREÇÃO: Descobrir qual é o som ANTES da lambda para evitar o erro do Java!
+            boolean eCobra = novaPos < posAntiga;
+
+            timeline.getKeyFrames().add(new KeyFrame(Duration.ZERO, evt -> {
+                if (eCobra) {
+                    if (somCobra != null) somCobra.play();
+                } else {
+                    if (somEscada != null) somEscada.play();
+                }
+            }));
 
             double[] posDestino = getCentroCasa(novaPos);
             tempoAcumulado += 600;
