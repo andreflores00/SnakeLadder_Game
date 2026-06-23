@@ -41,7 +41,7 @@ import pt.ipvc.snakeladder.rede.ServidorJogo;
  * comunicação de rede (Sockets) para o modo multiplayer.
  *
  * @author André e Eduardo
- * @version 1.3
+ * @version 1.4
  */
 public class Main extends Application {
 
@@ -64,7 +64,7 @@ public class Main extends Application {
     private boolean modoBot = false;
     private boolean modoRede = false;
     private boolean souHost = false;
-    private boolean jogoInterrompido = false; // Flag para impedir ações após desistência
+    private boolean jogoInterrompido = false;
 
     private ServidorJogo servidor;
     private ClienteJogo cliente;
@@ -73,7 +73,6 @@ public class Main extends Application {
     private Timeline animacaoJ1;
     private Timeline animacaoJ2;
 
-    // Efeitos Sonoros
     private AudioClip somDado;
     private AudioClip somCobra;
     private AudioClip somEscada;
@@ -133,8 +132,20 @@ public class Main extends Application {
             dialog.setContentText("Insere o IP do Servidor:");
             dialog.showAndWait().ifPresent(ip -> {
                 cliente = new ClienteJogo(valor -> Platform.runLater(() -> processarJogadaSincronizada(valor)));
-                cliente.conectar(ip, 5000);
-                prepararJogo(false, true, false, ip);
+
+                // NOVO: Callbacks de Sucesso e Falha
+                cliente.conectar(ip, 5000,
+                        // Se a ligação for bem sucedida:
+                        () -> Platform.runLater(() -> prepararJogo(false, true, false, ip)),
+                        // Se falhar o IP:
+                        () -> Platform.runLater(() -> {
+                            Alert erro = new Alert(Alert.AlertType.ERROR);
+                            erro.setTitle("Erro de Ligação");
+                            erro.setHeaderText("Não foi possível encontrar a sala.");
+                            erro.setContentText("Verifica se o IP '" + ip + "' está correto e se o teu colega já criou a sala (Host).");
+                            erro.showAndWait();
+                        })
+                );
             });
         });
 
@@ -210,7 +221,6 @@ public class Main extends Application {
         root.setStyle("-fx-background-color: #f1f5f9;");
         DropShadow sombraPaineis = new DropShadow(15, 0, 5, Color.color(0, 0, 0, 0.08));
 
-        // --- TOPO ---
         HBox barraTopo = new HBox(15);
         barraTopo.setStyle("-fx-background-color: #ffffff; -fx-padding: 10px 20px;");
         barraTopo.setEffect(new DropShadow(5, 0, 2, Color.color(0, 0, 0, 0.05)));
@@ -227,7 +237,6 @@ public class Main extends Application {
 
             alerta.showAndWait().ifPresent(resposta -> {
                 if (resposta == ButtonType.OK) {
-                    // Se o jogador sair a meio de um jogo online, manda o sinal de desistência para o outro PC!
                     if (modoRede && !jogoInterrompido && !motorJogo.isJogoTerminado()) {
                         if (souHost && servidor != null) servidor.enviarJogada(-1);
                         else if (!souHost && cliente != null) cliente.enviarJogada(-1);
@@ -242,7 +251,6 @@ public class Main extends Application {
         barraTopo.getChildren().add(btnVoltarMenu);
         root.setTop(barraTopo);
 
-        // --- CENTRO: Tabuleiro ---
         areaJogo = new StackPane();
         areaJogo.setEffect(sombraPaineis);
         BorderPane.setMargin(areaJogo, new Insets(15, 10, 15, 20));
@@ -275,7 +283,6 @@ public class Main extends Application {
         areaJogo.getChildren().addAll(canvas, camadaPecas);
         root.setCenter(areaJogo);
 
-        // --- LATERAL: Painel de Controlo ---
         VBox painelLateral = new VBox(20);
         painelLateral.setStyle("-fx-background-color: #ffffff; -fx-padding: 25px 20px; -fx-background-radius: 12px;");
         painelLateral.setEffect(sombraPaineis);
@@ -297,7 +304,6 @@ public class Main extends Application {
         Region espacador = new Region();
         VBox.setVgrow(espacador, Priority.ALWAYS);
 
-        // O botão altera o texto consoante estamos num jogo local ou multijogador
         Button btnReiniciar = new Button(modoRede ? "🏳️ Desistir da Partida" : "🏳️ Reiniciar Rápido");
         btnReiniciar.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-background-color: transparent; -fx-text-fill: #ef4444; -fx-border-color: #fca5a5; -fx-border-radius: 6px; -fx-border-width: 1.5px; -fx-cursor: hand; -fx-padding: 6px 12px;");
 
@@ -309,7 +315,6 @@ public class Main extends Application {
                 if(resposta == ButtonType.OK) {
                     if (modoRede) {
                         if (!jogoInterrompido && !motorJogo.isJogoTerminado()) {
-                            // Envia o código secreto -1 para o outro PC!
                             if (souHost && servidor != null) servidor.enviarJogada(-1);
                             else if (!souHost && cliente != null) cliente.enviarJogada(-1);
 
@@ -326,7 +331,6 @@ public class Main extends Application {
         painelLateral.getChildren().addAll(lblTituloPainel, lblDadoIcon, btnLancarDado, espacador, btnReiniciar);
         root.setRight(painelLateral);
 
-        // --- BOTTOM: Menu de Estado ---
         HBox barraInferior = new HBox();
         barraInferior.setStyle("-fx-background-color: #ffffff; -fx-padding: 15px 25px; -fx-background-radius: 12px; -fx-border-color: #e2e8f0; -fx-border-radius: 12px; -fx-border-width: 1px;");
         barraInferior.setEffect(sombraPaineis);
@@ -448,7 +452,6 @@ public class Main extends Application {
     private void processarJogadaSincronizada(int valorDado) {
         if (motorJogo.isJogoTerminado() || jogoInterrompido) return;
 
-        // O SEGREDO: Intercetar a desistência enviada pelo adversário
         if (valorDado == -1) {
             jogoInterrompido = true;
             processarDesistencia(false);
@@ -502,9 +505,6 @@ public class Main extends Application {
         }
     }
 
-    /**
-     * Aplica os efeitos visuais e sonoros de uma desistência no tabuleiro.
-     */
     private void processarDesistencia(boolean euDesisti) {
         if (!euDesisti && somVitoria != null) {
             somVitoria.play();
